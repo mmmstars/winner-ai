@@ -37,9 +37,15 @@ h1 {
 }
 
 .intro {
-  margin: 22px auto 36px;
+  margin: 10px auto 36px;
   font-size: clamp(1.45rem, 5vw, 2rem);
   line-height: 1.5;
+}
+
+.date {
+  margin: 18px 0 0;
+  color: #4b554d;
+  font-size: clamp(1.2rem, 4vw, 1.55rem);
 }
 
 .primary-button {
@@ -106,18 +112,41 @@ h2 {
 }
 
 .confidence,
-details,
+.match-time,
+.reasons,
 .notice {
   font-size: clamp(1.3rem, 4vw, 1.65rem);
   line-height: 1.55;
 }
 
-summary {
-  min-height: 64px;
-  padding: 14px 0;
+.why-button {
+  width: 100%;
+  min-height: 72px;
+  margin-top: 8px;
+  border: 3px solid #08783f;
+  border-radius: 16px;
+  background: #fff;
   color: #075f34;
   cursor: pointer;
+  font: inherit;
+  font-size: clamp(1.35rem, 5vw, 1.8rem);
   font-weight: 800;
+}
+
+.why-button:focus-visible {
+  outline: 5px solid #f0ae00;
+  outline-offset: 5px;
+}
+
+.reasons {
+  margin-top: 18px;
+  padding: 18px;
+  border-radius: 14px;
+  background: #f2f7f3;
+}
+
+.reasons h3 {
+  margin-top: 0;
 }
 
 li {
