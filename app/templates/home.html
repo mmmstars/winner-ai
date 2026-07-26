@@ -3,8 +3,14 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#f7f4ec">
+    <meta name="theme-color" content="#08783f">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Winner AI">
     <title>Winner AI</title>
+    <link rel="manifest" href="{{ url_for('static', path='/manifest.webmanifest') }}">
+    <link rel="icon" href="{{ url_for('static', path='/icon.svg') }}" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="{{ url_for('static', path='/icon.svg') }}">
     <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
   </head>
   <body>
@@ -66,6 +72,12 @@
         whyButton.setAttribute("aria-expanded", String(willOpen));
         whyButton.textContent = willOpen ? "הסתר הסבר" : "למה בחרנו?";
       });
+
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/service-worker.js");
+        });
+      }
     </script>
   </body>
 </html>
