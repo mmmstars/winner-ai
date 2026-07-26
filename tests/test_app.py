@@ -109,5 +109,5 @@ def test_installable_assets() -> None:
     assert client.get("/static/manifest.webmanifest").status_code == 200
     worker = client.get("/service-worker.js")
     assert worker.status_code == 200
-    assert "winner-ai-v040" in worker.text
+    assert "winner-ai-v041" in worker.text
     assert client.get("/static/icon.svg").status_code == 200
