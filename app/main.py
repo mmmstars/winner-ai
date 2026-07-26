@@ -1,17 +1,27 @@
+import hashlib
+import hmac
 import os
 from datetime import date
 from pathlib import Path
 from urllib.parse import parse_qs
 
 from fastapi import FastAPI, Request, status
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.database import add_recommendation, get_history, get_today_recommendations, initialize_database
+from app.database import (
+    add_recommendation,
+    export_database,
+    finish_recommendation,
+    get_active_recommendations,
+    get_history,
+    get_today_recommendations,
+    initialize_database,
+)
 
 BASE_DIR = Path(__file__).resolve().parent
-app = FastAPI(title="Winner AI", version="0.2.0")
+app = FastAPI(title="Winner AI", version="0.3.0")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 initialize_database()
@@ -19,6 +29,31 @@ initialize_database()
 
 def today_text() -> str:
     return date.today().strftime("%d.%m.%Y")
+
+
+def admin_token() -> str:
+    pin = os.getenv("ADMIN_PIN", "")
+    return hmac.new(pin.encode(), b"winner-ai-admin-v1", hashlib.sha256).hexdigest() if pin else ""
+
+
+def is_admin(request: Request) -> bool:
+    token = request.cookies.get("winner_admin", "")
+    expected = admin_token()
+    return bool(expected) and hmac.compare_digest(token, expected)
+
+
+async def read_form(request: Request) -> dict[str, str]:
+    return {key: values[0] for key, values in parse_qs((await request.body()).decode("utf-8")).items()}
+
+
+def admin_context(request: Request, **extra: object) -> dict:
+    authenticated = is_admin(request)
+    return {
+        "authenticated": authenticated,
+        "enabled": bool(os.getenv("ADMIN_PIN")),
+        "recommendations": get_active_recommendations() if authenticated else [],
+        **extra,
+    }
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -40,30 +75,51 @@ async def admin(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         request=request,
         name="admin.html",
-        context={"saved": request.query_params.get("saved") == "1", "enabled": bool(os.getenv("ADMIN_PIN"))},
+        context=admin_context(request, saved=request.query_params.get("saved") == "1"),
     )
 
 
-@app.post("/admin/recommendations", response_class=HTMLResponse)
-async def create_recommendation(
-    request: Request,
-) -> HTMLResponse:
-    form = {key: values[0] for key, values in parse_qs((await request.body()).decode("utf-8")).items()}
-    pin = form.get("pin", "")
+@app.post("/admin/login")
+async def admin_login(request: Request) -> HTMLResponse:
+    form = await read_form(request)
     configured_pin = os.getenv("ADMIN_PIN")
-    if not configured_pin or pin != configured_pin:
+    if not configured_pin or not hmac.compare_digest(form.get("pin", ""), configured_pin):
         return templates.TemplateResponse(
             request=request,
             name="admin.html",
-            context={"saved": False, "enabled": bool(configured_pin), "error": "הקוד אינו נכון."},
+            context=admin_context(request, error="הקוד אינו נכון."),
             status_code=status.HTTP_403_FORBIDDEN,
         )
+    response = RedirectResponse("/admin", status_code=status.HTTP_303_SEE_OTHER)
+    response.set_cookie(
+        "winner_admin",
+        admin_token(),
+        httponly=True,
+        secure=request.url.scheme == "https",
+        samesite="strict",
+        max_age=60 * 60 * 8,
+    )
+    return response
+
+
+@app.post("/admin/logout")
+async def admin_logout() -> RedirectResponse:
+    response = RedirectResponse("/admin", status_code=status.HTTP_303_SEE_OTHER)
+    response.delete_cookie("winner_admin")
+    return response
+
+
+@app.post("/admin/recommendations", response_class=HTMLResponse)
+async def create_recommendation(request: Request) -> HTMLResponse:
+    if not is_admin(request):
+        return HTMLResponse("אין הרשאה", status_code=status.HTTP_403_FORBIDDEN)
+    form = await read_form(request)
     required = ("home_team", "away_team", "match_time", "pick", "confidence", "reason_1")
     if any(not form.get(field, "").strip() for field in required):
         return templates.TemplateResponse(
             request=request,
             name="admin.html",
-            context={"saved": False, "enabled": True, "error": "יש למלא את כל שדות החובה."},
+            context=admin_context(request, error="יש למלא את כל שדות החובה."),
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         )
     reasons = [
@@ -80,6 +136,26 @@ async def create_recommendation(
         reasons,
     )
     return RedirectResponse("/admin?saved=1", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/admin/recommendations/{recommendation_id}/finish")
+async def close_recommendation(recommendation_id: int, request: Request):
+    if not is_admin(request):
+        return HTMLResponse("אין הרשאה", status_code=status.HTTP_403_FORBIDDEN)
+    form = await read_form(request)
+    success = form.get("result") == "success"
+    finish_recommendation(recommendation_id, success)
+    return RedirectResponse("/admin", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.get("/admin/backup")
+async def download_backup(request: Request) -> JSONResponse:
+    if not is_admin(request):
+        return JSONResponse({"error": "אין הרשאה"}, status_code=status.HTTP_403_FORBIDDEN)
+    return JSONResponse(
+        export_database(),
+        headers={"Content-Disposition": f'attachment; filename="winner-ai-backup-{date.today().isoformat()}.json"'},
+    )
 
 
 @app.get("/api/recommendations/today")
