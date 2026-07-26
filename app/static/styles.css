@@ -319,3 +319,80 @@ li {
   background: #ffe4e2;
   color: #8b1d16;
 }
+
+.login-form {
+  max-width: 420px;
+  margin-inline: auto;
+}
+
+.admin-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 24px 0;
+}
+
+.secondary-button {
+  min-height: 58px;
+  padding: 12px 24px;
+  border: 2px solid #8b1d16;
+  border-radius: 14px;
+  background: #fff;
+  color: #8b1d16;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.admin-section {
+  margin-top: 34px;
+  padding-top: 26px;
+  border-top: 3px solid #d7e1da;
+}
+
+.admin-section h2 {
+  text-align: right;
+}
+
+.admin-list {
+  display: grid;
+  gap: 18px;
+}
+
+.admin-card {
+  padding: 20px;
+  border: 2px solid #b9c9bd;
+  border-radius: 16px;
+  background: #fff;
+  text-align: right;
+}
+
+.admin-card h3 {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+}
+
+.result-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.result-button {
+  min-height: 54px;
+  border: 0;
+  border-radius: 12px;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.result-button.success {
+  background: #08783f;
+  color: #fff;
+}
+
+.result-button.failure {
+  background: #a1261d;
+  color: #fff;
+}
