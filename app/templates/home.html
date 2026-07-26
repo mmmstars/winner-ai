@@ -1,83 +1,39 @@
 <!doctype html>
 <html lang="he" dir="rtl">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#08783f">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Winner AI">
-    <title>Winner AI</title>
-    <link rel="manifest" href="/static/manifest.webmanifest">
-    <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="/static/icon.svg">
-    <link rel="stylesheet" href="/static/styles.css">
-  </head>
-  <body>
-    <main class="page">
-      <header>
-        <p class="brand" lang="en">Winner AI</p>
-        <h1>שלום אבא 👋</h1>
-        <p class="date">היום: {{ today }}</p>
-        <p class="intro">מצאנו המלצה אחת להיום.</p>
-      </header>
-
-      <button id="show-recommendation" class="primary-button" type="button"
-              aria-controls="recommendation" aria-expanded="false">
-        ההמלצה של היום
-      </button>
-
-      <section id="recommendation" class="recommendation" hidden tabindex="-1">
-        <p class="eyebrow">המשחק המומלץ</p>
-        <h2>{{ recommendation.home_team }} מול {{ recommendation.away_team }}</h2>
-        <p class="match-time">שעת המשחק: <strong>{{ recommendation.time }}</strong></p>
-        <div class="pick">
-          <span aria-hidden="true">✓</span>
-          <strong>{{ recommendation.pick }}</strong>
-        </div>
-        <p class="confidence">רמת ביטחון: <strong>{{ recommendation.confidence }}</strong></p>
-
-        <button id="show-reasons" class="why-button" type="button"
-                aria-controls="reasons" aria-expanded="false">
-          למה בחרנו?
-        </button>
-        <div id="reasons" class="reasons" hidden>
-          <h3>הסיבות שלנו</h3>
-          <ul>
-            {% for reason in recommendation.reasons %}
-            <li>{{ reason }}</li>
-            {% endfor %}
-          </ul>
-        </div>
-        <p class="notice">זו המלצה בלבד. אין ודאות בתוצאות ספורט.</p>
-      </section>
-    </main>
-
-    <script>
-      const mainButton = document.getElementById("show-recommendation");
-      const recommendation = document.getElementById("recommendation");
-      const whyButton = document.getElementById("show-reasons");
-      const reasons = document.getElementById("reasons");
-
-      mainButton.addEventListener("click", () => {
-        recommendation.hidden = false;
-        mainButton.hidden = true;
-        mainButton.setAttribute("aria-expanded", "true");
-        recommendation.focus();
-      });
-
-      whyButton.addEventListener("click", () => {
-        const willOpen = reasons.hidden;
-        reasons.hidden = !willOpen;
-        whyButton.setAttribute("aria-expanded", String(willOpen));
-        whyButton.textContent = willOpen ? "הסתר הסבר" : "למה בחרנו?";
-      });
-
-      if ("serviceWorker" in navigator) {
-        window.addEventListener("load", () => {
-          navigator.serviceWorker.register("/service-worker.js");
-        });
-      }
-    </script>
-  </body>
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#08783f"><meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Winner AI</title>
+  <link rel="manifest" href="/static/manifest.webmanifest"><link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<main class="page">
+  <header>
+    <p class="brand" lang="en">Winner AI</p><h1>שלום אבא 👋</h1>
+    <p class="date">היום: {{ today }}</p><p class="demo-badge">נתוני הדגמה</p>
+    <p class="intro">נמצאו {{ recommendations|length }} המלצות להיום.</p>
+  </header>
+  <button id="show-recommendations" class="primary-button" type="button" aria-controls="recommendations" aria-expanded="false">ההמלצות של היום</button>
+  <section id="recommendations" class="recommendations" hidden tabindex="-1">
+    {% for recommendation in recommendations %}
+    <article class="recommendation">
+      <p class="eyebrow">{{ recommendation.medal }} המלצה {{ loop.index }}</p>
+      <h2>{{ recommendation.home_team }} מול {{ recommendation.away_team }}</h2>
+      <p class="match-time">שעת המשחק: <strong>{{ recommendation.time }}</strong></p>
+      <div class="pick"><span aria-hidden="true">✓</span><strong>{{ recommendation.pick }}</strong></div>
+      <p class="confidence">רמת ביטחון: <strong>{{ recommendation.confidence }}</strong></p>
+      <details><summary>למה בחרנו?</summary><ul>{% for reason in recommendation.reasons %}<li>{{ reason }}</li>{% endfor %}</ul></details>
+    </article>
+    {% endfor %}
+    <p class="notice">המידע כרגע להדגמה בלבד. אין ודאות בתוצאות ספורט.</p>
+  </section>
+  <nav class="bottom-nav" aria-label="ניווט ראשי"><a class="nav-link active" href="/" aria-current="page">🏠 היום</a><a class="nav-link" href="/history">📜 היסטוריה</a></nav>
+</main>
+<script>
+const button=document.getElementById("show-recommendations"),recommendations=document.getElementById("recommendations");
+button.addEventListener("click",()=>{recommendations.hidden=false;button.hidden=true;button.setAttribute("aria-expanded","true");recommendations.focus();});
+if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/service-worker.js"));}
+</script>
+</body>
 </html>
