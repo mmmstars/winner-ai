@@ -21,7 +21,7 @@ from app.database import (
 )
 
 BASE_DIR = Path(__file__).resolve().parent
-app = FastAPI(title="Winner AI", version="0.3.0")
+app = FastAPI(title="Winner AI", version="0.4.0")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 initialize_database()
@@ -56,12 +56,27 @@ def admin_context(request: Request, **extra: object) -> dict:
     }
 
 
+def recommendations_for_coupon() -> list[dict]:
+    items = []
+    for recommendation in get_today_recommendations():
+        item = dict(recommendation)
+        pick = recommendation["pick"]
+        if recommendation["home_team"] in pick:
+            item["selection"] = "1"
+        elif recommendation["away_team"] in pick:
+            item["selection"] = "2"
+        else:
+            item["selection"] = "X"
+        items.append(item)
+    return items
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         request=request,
         name="home.html",
-        context={"recommendations": get_today_recommendations(), "today": today_text()},
+        context={"recommendations": recommendations_for_coupon(), "today": today_text()},
     )
 
 
