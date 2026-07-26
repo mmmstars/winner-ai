@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#08783f"><title>היסטוריה | Winner AI</title>
+  <link rel="manifest" href="/static/manifest.webmanifest"><link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<main class="page">
+  <header><p class="brand" lang="en">Winner AI</p><h1>היסטוריה</h1><p class="demo-badge">נתוני הדגמה</p><p class="intro">ההמלצות האחרונות שלנו.</p></header>
+  <section class="history-list" aria-label="המלצות קודמות">
+    {% for item in history %}
+    <article class="history-card">
+      <p class="history-date">{{ item.date }}</p><h2>{{ item.match }}</h2><p>{{ item.pick }}</p>
+      <p class="result {% if item.success %}success{% else %}failure{% endif %}">{% if item.success %}✓{% else %}×{% endif %} {{ item.result }}</p>
+    </article>
+    {% endfor %}
+  </section>
+  <nav class="bottom-nav" aria-label="ניווט ראשי"><a class="nav-link" href="/">🏠 היום</a><a class="nav-link active" href="/history" aria-current="page">📜 היסטוריה</a></nav>
+</main>
+</body>
+</html>
