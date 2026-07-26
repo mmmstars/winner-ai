@@ -131,3 +131,62 @@ def get_history() -> list[dict]:
         }
         for row in rows
     ]
+
+
+def get_active_recommendations(limit: int = 50) -> list[dict]:
+    with connect() as connection:
+        rows = connection.execute(
+            """
+            SELECT id, recommendation_date, home_team, away_team, match_time, pick,
+                   confidence, medal, reasons_json
+            FROM recommendations
+            WHERE active = 1
+            ORDER BY recommendation_date DESC, id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [
+        {
+            "id": row["id"],
+            "date": row["recommendation_date"],
+            "home_team": row["home_team"],
+            "away_team": row["away_team"],
+            "time": row["match_time"],
+            "pick": row["pick"],
+            "confidence": row["confidence"],
+            "medal": row["medal"],
+            "reasons": json.loads(row["reasons_json"]),
+        }
+        for row in rows
+    ]
+
+
+def finish_recommendation(recommendation_id: int, success: bool) -> bool:
+    with connect() as connection:
+        row = connection.execute(
+            "SELECT home_team, away_team, pick FROM recommendations WHERE id = ? AND active = 1",
+            (recommendation_id,),
+        ).fetchone()
+        if row is None:
+            return False
+        connection.execute(
+            "INSERT INTO history(event_date, match_name, pick, result, success) VALUES (?, ?, ?, ?, ?)",
+            (
+                date.today().strftime("%d.%m.%Y"),
+                f"{row['home_team']} מול {row['away_team']}",
+                row["pick"],
+                "הצליחה" if success else "לא הצליחה",
+                int(success),
+            ),
+        )
+        connection.execute("UPDATE recommendations SET active = 0 WHERE id = ?", (recommendation_id,))
+    return True
+
+
+def export_database() -> dict:
+    return {
+        "exported_at": date.today().isoformat(),
+        "active_recommendations": get_active_recommendations(),
+        "history": get_history(),
+    }
