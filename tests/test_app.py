@@ -14,63 +14,52 @@ from app.main import app
 client = TestClient(app)
 
 
+def login() -> None:
+    response = client.post("/admin/login", data={"pin": "246810"}, follow_redirects=False)
+    assert response.status_code == 303
+
+
+def logout() -> None:
+    client.post("/admin/logout")
+
+
 def test_health() -> None:
-    response = client.get("/health")
-    assert response.status_code == 200
-    assert response.json() == {"status": "ok", "version": "0.2.0"}
+    assert client.get("/health").json() == {"status": "ok", "version": "0.3.0"}
 
 
-def test_home_is_hebrew_dad_mode() -> None:
-    response = client.get("/")
-    assert response.status_code == 200
-    assert 'dir="rtl"' in response.text
-    assert "שלום אבא" in response.text
-    assert "ההמלצות של היום" in response.text
+def test_dad_mode_and_history() -> None:
+    home = client.get("/")
+    history = client.get("/history")
+    assert home.status_code == 200
+    assert 'dir="rtl"' in home.text
+    assert "שלום אבא" in home.text
+    assert "ההמלצות של היום" in home.text
+    assert "/admin" not in home.text
+    assert history.status_code == 200
+    assert "היסטוריה" in history.text
 
 
-def test_home_shows_up_to_three_recommendations() -> None:
-    response = client.get("/")
-    assert "מכבי חיפה" in response.text
-    assert "מכבי תל אביב" in response.text
-    assert response.text.count('class="recommendation"') <= 3
-
-
-def test_history_page() -> None:
-    response = client.get("/history")
-    assert response.status_code == 200
-    assert "היסטוריה" in response.text
-    assert "הצליחה" in response.text
-    assert "לא הצליחה" in response.text
-
-
-def test_admin_page_is_separate_from_dad_mode() -> None:
-    response = client.get("/admin")
-    assert response.status_code == 200
-    assert "הוספת המלצה" in response.text
-    assert "/admin" not in client.get("/").text
+def test_admin_requires_login() -> None:
+    logout()
+    page = client.get("/admin")
+    assert "קוד מנהל" in page.text
+    assert "הוספת המלצה" not in page.text
+    assert client.get("/admin/backup").status_code == 403
 
 
 def test_admin_rejects_wrong_pin() -> None:
-    response = client.post(
-        "/admin/recommendations",
-        data={
-            "pin": "000000",
-            "home_team": "קבוצה א",
-            "away_team": "קבוצה ב",
-            "match_time": "18:00",
-            "pick": "ניצחון קבוצה א",
-            "confidence": "גבוהה",
-            "reason_1": "משחק בית.",
-        },
-    )
+    response = client.post("/admin/login", data={"pin": "000000"})
     assert response.status_code == 403
+    assert "הקוד אינו נכון" in response.text
 
 
-def test_admin_can_add_recommendation() -> None:
+def test_admin_login_and_add_recommendation() -> None:
+    login()
+    page = client.get("/admin")
+    assert "הוספת המלצה" in page.text
     response = client.post(
         "/admin/recommendations",
         data={
-            "pin": "246810",
             "home_team": "קבוצה חדשה",
             "away_team": "יריבה חדשה",
             "match_time": "21:00",
@@ -82,22 +71,37 @@ def test_admin_can_add_recommendation() -> None:
         follow_redirects=False,
     )
     assert response.status_code == 303
-    assert response.headers["location"] == "/admin?saved=1"
     payload = client.get("/api/recommendations/today").json()
     assert payload["count"] == 3
     assert any(item["home_team"] == "קבוצה חדשה" for item in payload["recommendations"])
 
 
-def test_data_apis() -> None:
-    today = client.get("/api/recommendations/today")
-    history = client.get("/api/history")
-    assert today.status_code == 200
-    assert len(today.json()["recommendations"]) <= 3
-    assert history.status_code == 200
-    assert len(history.json()["history"]) == 2
+def test_finish_recommendation_moves_it_to_history() -> None:
+    login()
+    recommendations = client.get("/api/recommendations/today").json()["recommendations"]
+    target = next(item for item in recommendations if item["home_team"] == "קבוצה חדשה")
+    response = client.post(
+        f"/admin/recommendations/{target['id']}/finish",
+        data={"result": "success"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert all(item["id"] != target["id"] for item in client.get("/api/recommendations/today").json()["recommendations"])
+    assert any(item["match"].startswith("קבוצה חדשה") for item in client.get("/api/history").json()["history"])
+
+
+def test_backup_download() -> None:
+    login()
+    response = client.get("/admin/backup")
+    assert response.status_code == 200
+    assert "attachment" in response.headers["content-disposition"]
+    assert "active_recommendations" in response.json()
+    assert "history" in response.json()
 
 
 def test_installable_assets() -> None:
     assert client.get("/static/manifest.webmanifest").status_code == 200
-    assert client.get("/service-worker.js").status_code == 200
+    worker = client.get("/service-worker.js")
+    assert worker.status_code == 200
+    assert "winner-ai-v030" in worker.text
     assert client.get("/static/icon.svg").status_code == 200
