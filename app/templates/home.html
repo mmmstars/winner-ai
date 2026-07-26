@@ -2,37 +2,71 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#08783f"><meta name="apple-mobile-web-app-capable" content="yes">
-  <title>Winner AI</title>
+  <meta name="theme-color" content="#182b45"><meta name="apple-mobile-web-app-capable" content="yes">
+  <title>המלצות היום | Winner AI</title>
   <link rel="manifest" href="/static/manifest.webmanifest"><link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/styles.css">
 </head>
-<body>
-<main class="page">
-  <header>
-    <p class="brand" lang="en">Winner AI</p><h1>שלום אבא 👋</h1>
-    <p class="date">היום: {{ today }}</p><p class="demo-badge">נתוני הדגמה</p>
-    <p class="intro">נמצאו {{ recommendations|length }} המלצות להיום.</p>
+<body class="coupon-body">
+<main class="coupon-page">
+  <header class="coupon-header">
+    <div><p class="coupon-brand" lang="en">Winner AI</p><h1>המלצות היום</h1></div>
+    <div class="coupon-date">{{ today }}</div>
   </header>
-  <button id="show-recommendations" class="primary-button" type="button" aria-controls="recommendations" aria-expanded="false">ההמלצות של היום</button>
-  <section id="recommendations" class="recommendations" hidden tabindex="-1">
-    {% for recommendation in recommendations %}
-    <article class="recommendation">
-      <p class="eyebrow">{{ recommendation.medal }} המלצה {{ loop.index }}</p>
-      <h2>{{ recommendation.home_team }} מול {{ recommendation.away_team }}</h2>
-      <p class="match-time">שעת המשחק: <strong>{{ recommendation.time }}</strong></p>
-      <div class="pick"><span aria-hidden="true">✓</span><strong>{{ recommendation.pick }}</strong></div>
-      <p class="confidence">רמת ביטחון: <strong>{{ recommendation.confidence }}</strong></p>
-      <details><summary>למה בחרנו?</summary><ul>{% for reason in recommendation.reasons %}<li>{{ reason }}</li>{% endfor %}</ul></details>
-    </article>
-    {% endfor %}
-    <p class="notice">המידע כרגע להדגמה בלבד. אין ודאות בתוצאות ספורט.</p>
+
+  <section class="coupon-help" aria-label="הסבר לסימונים">
+    <strong>איך קוראים את הטופס?</strong>
+    <span><b>1</b> ניצחון לקבוצת הבית</span>
+    <span><b>X</b> תיקו</span>
+    <span><b>2</b> ניצחון לקבוצת החוץ</span>
   </section>
-  <nav class="bottom-nav" aria-label="ניווט ראשי"><a class="nav-link active" href="/" aria-current="page">🏠 היום</a><a class="nav-link" href="/history">📜 היסטוריה</a></nav>
+
+  <p class="demo-badge">נתוני הדגמה</p>
+
+  <section class="coupon" aria-label="טופס ההמלצות">
+    <div class="coupon-table-head" aria-hidden="true">
+      <span>#</span><span>המשחק</span><span>הבחירה שלנו</span><span>הסבר קצר</span>
+    </div>
+    {% for recommendation in recommendations %}
+    <article class="coupon-row">
+      <div class="game-number">{{ loop.index }}</div>
+      <div class="game-info">
+        <h2>{{ recommendation.home_team }}</h2>
+        <p>מול {{ recommendation.away_team }}</p>
+        <small>שעה {{ recommendation.time }}</small>
+      </div>
+      <div class="selection-area">
+        <p class="mobile-label">הבחירה שלנו</p>
+        <div class="selection-boxes" role="group" aria-label="המלצה למשחק {{ loop.index }}">
+          {% for option in ["1", "X", "2"] %}
+          <span class="selection {% if recommendation.selection == option %}recommended{% endif %}"
+                aria-label="{{ option }}{% if recommendation.selection == option %}, מומלץ{% endif %}">
+            {{ option }}
+            {% if recommendation.selection == option %}<small>מומלץ</small>{% endif %}
+          </span>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="coupon-explanation">
+        <strong>למה?</strong>
+        <ul>{% for reason in recommendation.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
+      </div>
+    </article>
+    {% else %}
+    <div class="empty-coupon">
+      <h2>אין המלצות להיום</h2>
+      <p>עדיף להמתין ליום אחר.</p>
+    </div>
+    {% endfor %}
+  </section>
+
+  <p class="coupon-notice">אלה המלצות בלבד. אין ודאות בתוצאות ספורט.</p>
+  <nav class="bottom-nav coupon-nav" aria-label="ניווט ראשי">
+    <a class="nav-link active" href="/" aria-current="page">המלצות היום</a>
+    <a class="nav-link" href="/history">היסטוריה</a>
+  </nav>
 </main>
 <script>
-const button=document.getElementById("show-recommendations"),recommendations=document.getElementById("recommendations");
-button.addEventListener("click",()=>{recommendations.hidden=false;button.hidden=true;button.setAttribute("aria-expanded","true");recommendations.focus();});
 if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/service-worker.js"));}
 </script>
 </body>
