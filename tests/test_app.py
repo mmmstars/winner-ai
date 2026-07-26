@@ -24,7 +24,7 @@ def logout() -> None:
 
 
 def test_health() -> None:
-    assert client.get("/health").json() == {"status": "ok", "version": "0.3.0"}
+    assert client.get("/health").json() == {"status": "ok", "version": "0.4.0"}
 
 
 def test_dad_mode_and_history() -> None:
@@ -32,8 +32,14 @@ def test_dad_mode_and_history() -> None:
     history = client.get("/history")
     assert home.status_code == 200
     assert 'dir="rtl"' in home.text
-    assert "שלום אבא" in home.text
-    assert "ההמלצות של היום" in home.text
+    assert "המלצות היום" in home.text
+    assert "ניצחון לקבוצת הבית" in home.text
+    assert "ניצחון לקבוצת החוץ" in home.text
+    assert ">1<" in home.text.replace(" ", "").replace("\n", "")
+    assert ">X<" in home.text.replace(" ", "").replace("\n", "")
+    assert ">2<" in home.text.replace(" ", "").replace("\n", "")
+    assert "מומלץ" in home.text
+    assert "למה?" in home.text
     assert "/admin" not in home.text
     assert history.status_code == 200
     assert "היסטוריה" in history.text
@@ -103,5 +109,5 @@ def test_installable_assets() -> None:
     assert client.get("/static/manifest.webmanifest").status_code == 200
     worker = client.get("/service-worker.js")
     assert worker.status_code == 200
-    assert "winner-ai-v030" in worker.text
+    assert "winner-ai-v040" in worker.text
     assert client.get("/static/icon.svg").status_code == 200
