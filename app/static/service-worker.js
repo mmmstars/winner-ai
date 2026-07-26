@@ -1,4 +1,4 @@
-const CACHE_NAME = "winner-ai-v010";
+const CACHE_NAME = "winner-ai-v020";
 const APP_SHELL = [
   "/",
   "/history",
