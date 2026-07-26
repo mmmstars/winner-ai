@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#08783f"><title>ניהול | Winner AI</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<main class="page admin-page">
+  <header>
+    <p class="brand" lang="en">Winner AI</p>
+    <h1>הוספת המלצה</h1>
+    <p class="intro">מסך ניהול אישי. הוא אינו מופיע במצב אבא.</p>
+  </header>
+  {% if saved %}<p class="admin-message success">ההמלצה נשמרה בהצלחה.</p>{% endif %}
+  {% if error %}<p class="admin-message error">{{ error }}</p>{% endif %}
+  {% if not enabled %}
+    <p class="admin-message error">הזנת המלצות נעולה עד להגדרת קוד מנהל.</p>
+  {% endif %}
+  <form class="admin-form" method="post" action="/admin/recommendations">
+    <label>קוד מנהל<input name="pin" type="password" inputmode="numeric" required></label>
+    <label>קבוצת בית<input name="home_team" required></label>
+    <label>קבוצת חוץ<input name="away_team" required></label>
+    <label>שעת המשחק<input name="match_time" type="time" required></label>
+    <label>הבחירה שלנו<input name="pick" required></label>
+    <label>רמת ביטחון
+      <select name="confidence"><option>גבוהה</option><option>בינונית</option><option>נמוכה</option></select>
+    </label>
+    <label>סיבה ראשונה<input name="reason_1" required></label>
+    <label>סיבה שנייה<input name="reason_2"></label>
+    <label>סיבה שלישית<input name="reason_3"></label>
+    <button class="primary-button" type="submit" {% if not enabled %}disabled{% endif %}>שמור המלצה</button>
+  </form>
+  <nav class="bottom-nav" aria-label="ניווט מנהל"><a class="nav-link" href="/">חזרה לאתר</a><a class="nav-link" href="/history">היסטוריה</a></nav>
+</main>
+</body>
+</html>
