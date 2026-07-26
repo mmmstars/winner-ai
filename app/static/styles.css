@@ -1,0 +1,147 @@
+:root {
+  color-scheme: light;
+  font-family: Arial, "Noto Sans Hebrew", sans-serif;
+  background: #f7f4ec;
+  color: #172118;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #f7f4ec;
+}
+
+.page {
+  width: min(100% - 32px, 680px);
+  margin: 0 auto;
+  padding: 48px 0;
+  text-align: center;
+}
+
+.brand {
+  margin: 0 0 28px;
+  color: #0b6637;
+  font-size: clamp(2rem, 8vw, 3.5rem);
+  font-weight: 800;
+  letter-spacing: -1px;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2.25rem, 9vw, 4rem);
+  line-height: 1.15;
+}
+
+.intro {
+  margin: 22px auto 36px;
+  font-size: clamp(1.45rem, 5vw, 2rem);
+  line-height: 1.5;
+}
+
+.primary-button {
+  width: 100%;
+  min-height: 84px;
+  padding: 18px 28px;
+  border: 0;
+  border-radius: 18px;
+  background: #08783f;
+  color: #fff;
+  box-shadow: 0 5px 0 #04552b;
+  cursor: pointer;
+  font: inherit;
+  font-size: clamp(1.55rem, 6vw, 2.2rem);
+  font-weight: 800;
+}
+
+.primary-button:focus-visible,
+summary:focus-visible {
+  outline: 5px solid #f0ae00;
+  outline-offset: 5px;
+}
+
+.primary-button:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 #04552b;
+}
+
+.recommendation {
+  margin-top: 32px;
+  padding: 32px 24px;
+  border: 3px solid #0b6637;
+  border-radius: 22px;
+  background: #fff;
+  text-align: right;
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+  color: #0b6637;
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+
+h2 {
+  margin: 0 0 26px;
+  font-size: clamp(1.8rem, 6vw, 2.65rem);
+  line-height: 1.35;
+}
+
+.pick {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px;
+  border-radius: 14px;
+  background: #dff5e8;
+  font-size: clamp(1.55rem, 5vw, 2rem);
+}
+
+.pick span {
+  color: #08783f;
+  font-size: 2.2rem;
+}
+
+.confidence,
+details,
+.notice {
+  font-size: clamp(1.3rem, 4vw, 1.65rem);
+  line-height: 1.55;
+}
+
+summary {
+  min-height: 64px;
+  padding: 14px 0;
+  color: #075f34;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+li {
+  margin-block: 14px;
+}
+
+.notice {
+  margin: 28px 0 0;
+  color: #4b554d;
+}
+
+@media (max-width: 420px) {
+  .page {
+    width: min(100% - 24px, 680px);
+    padding-top: 28px;
+  }
+
+  .recommendation {
+    padding: 24px 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+  }
+}
