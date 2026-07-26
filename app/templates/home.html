@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f7f4ec">
+    <title>Winner AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+  </head>
+  <body>
+    <main class="page">
+      <header>
+        <p class="brand" lang="en">Winner AI</p>
+        <h1>שלום אבא 👋</h1>
+        <p class="intro">הכנו עבורך המלצה אחת פשוטה להיום.</p>
+      </header>
+
+      <button id="show-recommendation" class="primary-button" type="button"
+              aria-controls="recommendation" aria-expanded="false">
+        ההמלצה של היום
+      </button>
+
+      <section id="recommendation" class="recommendation" hidden tabindex="-1">
+        <p class="eyebrow">המשחק המומלץ</p>
+        <h2>{{ recommendation.home_team }} מול {{ recommendation.away_team }}</h2>
+        <div class="pick">
+          <span aria-hidden="true">✓</span>
+          <strong>{{ recommendation.pick }}</strong>
+        </div>
+        <p class="confidence">רמת ביטחון: <strong>{{ recommendation.confidence }}</strong></p>
+
+        <details>
+          <summary>למה בחרנו?</summary>
+          <ul>
+            {% for reason in recommendation.reasons %}
+            <li>{{ reason }}</li>
+            {% endfor %}
+          </ul>
+        </details>
+        <p class="notice">זו המלצה בלבד, ואין ודאות בתוצאות ספורט.</p>
+      </section>
+    </main>
+
+    <script>
+      const button = document.getElementById("show-recommendation");
+      const recommendation = document.getElementById("recommendation");
+      button.addEventListener("click", () => {
+        recommendation.hidden = false;
+        button.hidden = true;
+        button.setAttribute("aria-expanded", "true");
+        recommendation.focus();
+      });
+    </script>
+  </body>
+</html>
