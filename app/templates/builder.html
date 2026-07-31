@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#102a43"><title>יצירת טפסים | Winner AI</title>
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/styles.css?v=103">
+</head>
+<body class="winner-body">
+<main class="winner-page">
+  <header class="winner-header"><div><b>Winner AI</b><h1>יצירת טפסים</h1></div><span>{{ today }}</span></header>
+  <nav class="top-nav"><a class="tab" href="/">המלצות לאבא</a><button class="tab active" data-page="builder">יצירת טפסים</button><button class="tab" data-page="history">היסטוריה</button></nav>
+  <section id="builder" class="app-page">
+    <div class="simple-controls panel"><label>שם המחזור<input id="round-name" value="מחזור Winner 16"></label><label>סגירת המחזור<input id="closes-at" type="datetime-local"></label><label>מספר טפסים<select id="ticket-count"><option>1</option><option selected>3</option><option>5</option><option>10</option><option>20</option></select></label><label>סגנון<select id="strategy"><option>בטוח</option><option selected>מאוזן</option><option>נועז</option></select></label></div>
+    <div class="legend"><b>1</b> בית <b>X</b> תיקו <b>2</b> חוץ</div><datalist id="team-catalog"></datalist><div id="games"></div>
+    <p id="message" class="app-message" role="alert"></p><button id="generate" class="generate-button">צור טפסים</button><section id="tickets" aria-live="polite"></section>
+  </section>
+  <section id="history" class="app-page hidden"><div id="stats" class="stats-grid"></div><div class="panel"><h2>הרצות קודמות</h2><div id="history-list"></div></div></section>
+</main><script src="/static/winner.js?v=103"></script></body></html>
