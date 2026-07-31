@@ -41,6 +41,83 @@ def initialize_database() -> None:
                 result TEXT NOT NULL,
                 success INTEGER NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS ticket_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                ticket_count INTEGER NOT NULL,
+                strategy TEXT NOT NULL,
+                best_score INTEGER
+            );
+            CREATE TABLE IF NOT EXISTS ticket_picks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id INTEGER NOT NULL,
+                ticket_number INTEGER NOT NULL,
+                game_number INTEGER NOT NULL,
+                home_team TEXT NOT NULL,
+                away_team TEXT NOT NULL,
+                selection TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                actual_result TEXT
+            );
+            CREATE TABLE IF NOT EXISTS toto_rounds (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                closes_at TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                status TEXT NOT NULL DEFAULT 'draft'
+            );
+            CREATE TABLE IF NOT EXISTS fixtures (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                round_id INTEGER NOT NULL,
+                game_number INTEGER NOT NULL,
+                home_team TEXT NOT NULL,
+                away_team TEXT NOT NULL,
+                UNIQUE(round_id, game_number)
+            );
+            CREATE TABLE IF NOT EXISTS odds_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                fixture_id INTEGER NOT NULL,
+                captured_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                home_odds REAL NOT NULL,
+                draw_odds REAL NOT NULL,
+                away_odds REAL NOT NULL,
+                source TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS predictions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                fixture_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                model_version TEXT NOT NULL,
+                home_probability REAL NOT NULL,
+                draw_probability REAL NOT NULL,
+                away_probability REAL NOT NULL,
+                bookmaker_margin REAL NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS teams (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                canonical_name TEXT NOT NULL UNIQUE,
+                name_he TEXT NOT NULL,
+                provider TEXT,
+                external_id TEXT,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS team_aliases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                team_id INTEGER NOT NULL,
+                alias TEXT NOT NULL UNIQUE
+            );
+            CREATE TABLE IF NOT EXISTS external_matches (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider TEXT NOT NULL,
+                external_id TEXT NOT NULL,
+                competition TEXT NOT NULL,
+                kickoff_at TEXT NOT NULL,
+                status TEXT NOT NULL,
+                home_team_id INTEGER NOT NULL,
+                away_team_id INTEGER NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(provider, external_id)
+            );
             """
         )
         if connection.execute("SELECT COUNT(*) FROM recommendations").fetchone()[0] == 0:
@@ -69,7 +146,7 @@ def add_recommendation(
     pick: str,
     confidence: str,
     reasons: list[str],
-    medal: str = "⭐",
+    medal: str = "ג­",
     connection: sqlite3.Connection | None = None,
 ) -> int:
     owns_connection = connection is None
@@ -89,7 +166,7 @@ def add_recommendation(
     return int(cursor.lastrowid)
 
 
-def get_today_recommendations(limit: int = 3) -> list[dict]:
+def get_today_recommendations(limit: int = 16) -> list[dict]:
     with connect() as connection:
         rows = connection.execute(
             """
@@ -174,9 +251,9 @@ def finish_recommendation(recommendation_id: int, success: bool) -> bool:
             "INSERT INTO history(event_date, match_name, pick, result, success) VALUES (?, ?, ?, ?, ?)",
             (
                 date.today().strftime("%d.%m.%Y"),
-                f"{row['home_team']} מול {row['away_team']}",
+                f"{row['home_team']} ׳׳•׳ {row['away_team']}",
                 row["pick"],
-                "הצליחה" if success else "לא הצליחה",
+                "׳”׳¦׳׳™׳—׳”" if success else "׳׳ ׳”׳¦׳׳™׳—׳”",
                 int(success),
             ),
         )
@@ -190,3 +267,208 @@ def export_database() -> dict:
         "active_recommendations": get_active_recommendations(),
         "history": get_history(),
     }
+
+
+def save_ticket_run(games: list, tickets: list[dict], strategy: str) -> int:
+    with connect() as connection:
+        cursor = connection.execute(
+            "INSERT INTO ticket_runs(ticket_count, strategy) VALUES (?, ?)",
+            (len(tickets), strategy),
+        )
+        run_id = int(cursor.lastrowid)
+        by_number = {game.number: game for game in games}
+        for ticket in tickets:
+            for pick in ticket["picks"]:
+                game = by_number[pick["game_number"]]
+                connection.execute(
+                    """INSERT INTO ticket_picks(
+                       run_id,ticket_number,game_number,home_team,away_team,selection,confidence
+                       ) VALUES (?,?,?,?,?,?,?)""",
+                    (run_id, ticket["number"], game.number, game.home_team,
+                     game.away_team, pick["selection"], pick["confidence"]),
+                )
+    return run_id
+
+
+def settle_ticket_run(run_id: int, results: list[str]) -> int | None:
+    with connect() as connection:
+        rows = connection.execute(
+            "SELECT id,ticket_number,game_number,selection FROM ticket_picks WHERE run_id=?",
+            (run_id,),
+        ).fetchall()
+        if not rows:
+            return None
+        scores: dict[int, int] = {}
+        for row in rows:
+            actual = results[row["game_number"] - 1]
+            connection.execute("UPDATE ticket_picks SET actual_result=? WHERE id=?", (actual, row["id"]))
+            scores[row["ticket_number"]] = scores.get(row["ticket_number"], 0) + int(row["selection"] == actual)
+        best = max(scores.values())
+        connection.execute("UPDATE ticket_runs SET best_score=? WHERE id=?", (best, run_id))
+    return best
+
+
+def get_ticket_history() -> list[dict]:
+    with connect() as connection:
+        rows = connection.execute(
+            "SELECT id,created_at,ticket_count,strategy,best_score FROM ticket_runs ORDER BY id DESC LIMIT 50"
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_ticket_statistics() -> dict:
+    with connect() as connection:
+        row = connection.execute(
+            """SELECT COUNT(*) runs, COUNT(best_score) settled,
+               COALESCE(ROUND(AVG(best_score),2),0) average,
+               COALESCE(MAX(best_score),0) best FROM ticket_runs"""
+        ).fetchone()
+    return dict(row)
+
+
+def create_round(name: str, closes_at: str, games: list, analyses: list[dict]) -> int:
+    with connect() as connection:
+        cursor = connection.execute(
+            "INSERT INTO toto_rounds(name, closes_at) VALUES (?, ?)", (name, closes_at)
+        )
+        round_id = int(cursor.lastrowid)
+        for game, analysis in zip(games, analyses, strict=True):
+            _upsert_team(connection, game.home_team)
+            _upsert_team(connection, game.away_team)
+            fixture = connection.execute(
+                "INSERT INTO fixtures(round_id,game_number,home_team,away_team) VALUES(?,?,?,?)",
+                (round_id, game.number, game.home_team, game.away_team),
+            )
+            fixture_id = int(fixture.lastrowid)
+            connection.execute(
+                """INSERT INTO odds_snapshots(
+                   fixture_id,home_odds,draw_odds,away_odds,source
+                   ) VALUES(?,?,?,?,?)""",
+                (fixture_id, game.home_odds, game.draw_odds, game.away_odds, "manual"),
+            )
+            fair = analysis["fair"]
+            connection.execute(
+                """INSERT INTO predictions(
+                   fixture_id,model_version,home_probability,draw_probability,
+                   away_probability,bookmaker_margin) VALUES(?,?,?,?,?,?)""",
+                (fixture_id, "market-simple-v1", fair["1"], fair["X"], fair["2"], analysis["bookmaker_margin"]),
+            )
+    return round_id
+
+
+def _upsert_team(connection: sqlite3.Connection, name: str, provider: str | None = None, external_id: str | None = None) -> int:
+    canonical = " ".join(name.casefold().split())
+    connection.execute(
+        """INSERT INTO teams(canonical_name,name_he,provider,external_id) VALUES(?,?,?,?)
+           ON CONFLICT(canonical_name) DO UPDATE SET
+           name_he=excluded.name_he,
+           provider=COALESCE(excluded.provider,teams.provider),
+           external_id=COALESCE(excluded.external_id,teams.external_id),
+           updated_at=CURRENT_TIMESTAMP""",
+        (canonical, name.strip(), provider, external_id),
+    )
+    team_id = connection.execute("SELECT id FROM teams WHERE canonical_name=?", (canonical,)).fetchone()[0]
+    connection.execute(
+        "INSERT OR IGNORE INTO team_aliases(team_id,alias) VALUES(?,?)", (team_id, name.strip())
+    )
+    return int(team_id)
+
+
+def import_teams(items: list[dict], provider: str) -> int:
+    with connect() as connection:
+        for item in items:
+            team_id = _upsert_team(connection, item["name_he"], provider, str(item.get("external_id", "")))
+            for alias in item.get("aliases", []):
+                connection.execute(
+                    "INSERT OR IGNORE INTO team_aliases(team_id,alias) VALUES(?,?)",
+                    (team_id, alias.strip()),
+                )
+    return len(items)
+
+
+def list_teams(query: str = "", limit: int = 100) -> list[dict]:
+    pattern = f"%{query.strip()}%"
+    with connect() as connection:
+        rows = connection.execute(
+            """SELECT DISTINCT t.id,t.name_he,t.canonical_name,t.provider,t.external_id
+               FROM teams t LEFT JOIN team_aliases a ON a.team_id=t.id
+               WHERE t.name_he LIKE ? OR t.canonical_name LIKE ? OR a.alias LIKE ?
+               ORDER BY t.name_he LIMIT ?""",
+            (pattern, pattern.casefold(), pattern, limit),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def import_matches(items: list[dict], provider: str) -> int:
+    with connect() as connection:
+        for item in items:
+            home_id = _upsert_team(connection, item["home_team"], provider, item["home_external_id"])
+            away_id = _upsert_team(connection, item["away_team"], provider, item["away_external_id"])
+            connection.execute(
+                """INSERT INTO external_matches(provider,external_id,competition,kickoff_at,status,home_team_id,away_team_id)
+                   VALUES(?,?,?,?,?,?,?) ON CONFLICT(provider,external_id) DO UPDATE SET
+                   competition=excluded.competition,kickoff_at=excluded.kickoff_at,status=excluded.status,
+                   home_team_id=excluded.home_team_id,away_team_id=excluded.away_team_id,updated_at=CURRENT_TIMESTAMP""",
+                (provider, item["external_id"], item["competition"], item["kickoff_at"], item["status"], home_id, away_id),
+            )
+    return len(items)
+
+
+def upcoming_matches(limit: int = 100) -> list[dict]:
+    with connect() as connection:
+        rows = connection.execute(
+            """SELECT m.id,m.external_id,m.competition,m.kickoff_at,m.status,
+               h.name_he home_team,a.name_he away_team
+               FROM external_matches m JOIN teams h ON h.id=m.home_team_id JOIN teams a ON a.id=m.away_team_id
+               WHERE m.status='scheduled' ORDER BY m.kickoff_at LIMIT ?""", (limit,)
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_round(round_id: int) -> dict | None:
+    with connect() as connection:
+        round_row = connection.execute(
+            "SELECT id,name,closes_at,created_at,status FROM toto_rounds WHERE id=?", (round_id,)
+        ).fetchone()
+        if round_row is None:
+            return None
+        rows = connection.execute(
+            """SELECT f.game_number,f.home_team,f.away_team,o.home_odds,o.draw_odds,o.away_odds,
+               p.home_probability,p.draw_probability,p.away_probability,p.bookmaker_margin
+               FROM fixtures f JOIN odds_snapshots o ON o.fixture_id=f.id
+               JOIN predictions p ON p.fixture_id=f.id
+               WHERE f.round_id=? ORDER BY f.game_number""",
+            (round_id,),
+        ).fetchall()
+    result = dict(round_row)
+    result["games"] = [dict(row) for row in rows]
+    return result
+
+
+def latest_round_recommendations() -> list[dict]:
+    with connect() as connection:
+        latest = connection.execute("SELECT id FROM toto_rounds ORDER BY id DESC LIMIT 1").fetchone()
+        if latest is None:
+            return []
+        rows = connection.execute(
+            """SELECT f.game_number,f.home_team,f.away_team,
+               p.home_probability,p.draw_probability,p.away_probability,p.bookmaker_margin
+               FROM fixtures f JOIN predictions p ON p.fixture_id=f.id
+               WHERE f.round_id=? ORDER BY f.game_number""",
+            (latest["id"],),
+        ).fetchall()
+    items = []
+    for row in rows:
+        chances = {"1": row["home_probability"], "X": row["draw_probability"], "2": row["away_probability"]}
+        selection = max(chances, key=chances.get)
+        items.append({
+            "home_team": row["home_team"], "away_team": row["away_team"], "time": "׳˜׳¨׳ ׳ ׳§׳‘׳¢",
+            "selection": selection,
+            "confidence": f"{round(chances[selection] * 100)}%",
+            "reasons": [
+                f"׳”׳¡׳×׳‘׳¨׳•׳× ׳”׳©׳•׳§ ׳”׳’׳‘׳•׳”׳” ׳‘׳™׳•׳×׳¨: {round(chances[selection] * 100)}%.",
+                f"׳׳¨׳•׳•׳— ׳”׳©׳•׳§ ׳©׳—׳•׳©׳‘: {row['bookmaker_margin']}%.",
+            ],
+        })
+    return items
+
