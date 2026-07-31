@@ -20,14 +20,14 @@ class GameInput(BaseModel):
 class GenerateRequest(BaseModel):
     games: list[GameInput]
     ticket_count: int = Field(ge=1, le=20)
-    strategy: Literal["׳‘׳˜׳•׳—", "׳׳׳•׳–׳", "׳ ׳•׳¢׳–"]
+    strategy: Literal["בטוח", "מאוזן", "נועז"]
 
     @model_validator(mode="after")
     def validate_games(self):
         if len(self.games) != 16:
-            raise ValueError("׳™׳© ׳׳”׳–׳™׳ ׳‘׳“׳™׳•׳§ 16 ׳׳©׳—׳§׳™׳")
+            raise ValueError("יש להזין בדיוק 16 משחקים")
         if sorted(game.number for game in self.games) != list(range(1, 17)):
-            raise ValueError("׳׳¡׳₪׳¨׳™ ׳”׳׳©׳—׳§׳™׳ ׳—׳™׳™׳‘׳™׳ ׳׳”׳™׳•׳× 1 ׳¢׳“ 16")
+            raise ValueError("מספרי המשחקים חייבים להיות 1 עד 16")
         return self
 
 
@@ -39,12 +39,12 @@ class RoundRequest(BaseModel):
     @model_validator(mode="after")
     def validate_round(self):
         if len(self.games) != 16:
-            raise ValueError("׳׳—׳–׳•׳¨ Winner ׳—׳™׳™׳‘ ׳׳›׳׳•׳ ׳‘׳“׳™׳•׳§ 16 ׳׳©׳—׳§׳™׳")
+            raise ValueError("מחזור Winner חייב לכלול בדיוק 16 משחקים")
         if sorted(game.number for game in self.games) != list(range(1, 17)):
-            raise ValueError("׳׳¡׳₪׳¨׳™ ׳”׳׳©׳—׳§׳™׳ ׳—׳™׳™׳‘׳™׳ ׳׳”׳™׳•׳× 1 ׳¢׳“ 16")
+            raise ValueError("מספרי המשחקים חייבים להיות 1 עד 16")
         pairs = {(game.home_team.casefold(), game.away_team.casefold()) for game in self.games}
         if len(pairs) != 16:
-            raise ValueError("׳ ׳׳¦׳׳• ׳׳©׳—׳§׳™׳ ׳›׳₪׳•׳׳™׳")
+            raise ValueError("נמצאו משחקים כפולים")
         return self
 
 
@@ -54,7 +54,7 @@ class SettleRequest(BaseModel):
     @model_validator(mode="after")
     def validate_results(self):
         if len(self.results) != 16:
-            raise ValueError("׳™׳© ׳׳”׳–׳™׳ ׳‘׳“׳™׳•׳§ 16 ׳×׳•׳¦׳׳•׳×")
+            raise ValueError("יש להזין בדיוק 16 תוצאות")
         return self
 
 
@@ -105,7 +105,7 @@ def power_probabilities(game: GameInput) -> dict[str, float]:
 
 def generate(request: GenerateRequest, seed: int) -> list[dict]:
     rng = random.Random(seed)
-    variation = {"׳‘׳˜׳•׳—": 0.05, "׳׳׳•׳–׳": 0.16, "׳ ׳•׳¢׳–": 0.30}[request.strategy]
+    variation = {"בטוח": 0.05, "מאוזן": 0.16, "נועז": 0.30}[request.strategy]
     tickets, used = [], set()
     for number in range(1, request.ticket_count + 1):
         for _ in range(100):
@@ -122,4 +122,3 @@ def generate(request: GenerateRequest, seed: int) -> list[dict]:
                 tickets.append({"number": number, "picks": picks})
                 break
     return tickets
-
