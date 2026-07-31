@@ -146,7 +146,7 @@ def add_recommendation(
     pick: str,
     confidence: str,
     reasons: list[str],
-    medal: str = "ג­",
+    medal: str = "⭐",
     connection: sqlite3.Connection | None = None,
 ) -> int:
     owns_connection = connection is None
@@ -251,9 +251,9 @@ def finish_recommendation(recommendation_id: int, success: bool) -> bool:
             "INSERT INTO history(event_date, match_name, pick, result, success) VALUES (?, ?, ?, ?, ?)",
             (
                 date.today().strftime("%d.%m.%Y"),
-                f"{row['home_team']} ׳׳•׳ {row['away_team']}",
+                f"{row['home_team']} מול {row['away_team']}",
                 row["pick"],
-                "׳”׳¦׳׳™׳—׳”" if success else "׳׳ ׳”׳¦׳׳™׳—׳”",
+                "הצליחה" if success else "לא הצליחה",
                 int(success),
             ),
         )
@@ -462,13 +462,12 @@ def latest_round_recommendations() -> list[dict]:
         chances = {"1": row["home_probability"], "X": row["draw_probability"], "2": row["away_probability"]}
         selection = max(chances, key=chances.get)
         items.append({
-            "home_team": row["home_team"], "away_team": row["away_team"], "time": "׳˜׳¨׳ ׳ ׳§׳‘׳¢",
+            "home_team": row["home_team"], "away_team": row["away_team"], "time": "טרם נקבע",
             "selection": selection,
             "confidence": f"{round(chances[selection] * 100)}%",
             "reasons": [
-                f"׳”׳¡׳×׳‘׳¨׳•׳× ׳”׳©׳•׳§ ׳”׳’׳‘׳•׳”׳” ׳‘׳™׳•׳×׳¨: {round(chances[selection] * 100)}%.",
-                f"׳׳¨׳•׳•׳— ׳”׳©׳•׳§ ׳©׳—׳•׳©׳‘: {row['bookmaker_margin']}%.",
+                f"הסתברות השוק הגבוהה ביותר: {round(chances[selection] * 100)}%.",
+                f"מרווח השוק שחושב: {row['bookmaker_margin']}%.",
             ],
         })
     return items
-
