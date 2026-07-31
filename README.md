@@ -18,3 +18,6 @@ uvicorn app.main:app --reload
 ```powershell
 pytest
 ```
+גרסה נוכחית: 0.0.2
+מצב: פורסם
+ספרינט: 2
