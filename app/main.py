@@ -87,11 +87,11 @@ def recommendations_for_coupon() -> list[dict]:
     while len(items) < 16:
         items.append(
             {
-                "home_team": "׳׳׳×׳™׳ ׳׳׳©׳—׳§",
-                "away_team": "׳™׳×׳¢׳“׳›׳ ׳׳•׳˜׳•׳׳˜׳™׳×",
+                "home_team": "ממתין למשחק",
+                "away_team": "יתעדכן אוטומטית",
                 "time": "--:--",
                 "selection": "",
-                "reasons": ["׳”׳׳©׳—׳§ ׳•׳”׳”׳׳׳¦׳” ׳™׳•׳₪׳™׳¢׳• ׳׳׳—׳¨ ׳¢׳“׳›׳•׳ ׳”׳׳—׳–׳•׳¨."],
+                "reasons": ["המשחק וההמלצה יופיעו לאחר עדכון המחזור."],
             }
         )
     return items[:16]
@@ -138,7 +138,7 @@ async def admin_login(request: Request) -> HTMLResponse:
         return templates.TemplateResponse(
             request=request,
             name="admin.html",
-            context=admin_context(request, error="׳”׳§׳•׳“ ׳׳™׳ ׳• ׳ ׳›׳•׳."),
+            context=admin_context(request, error="הקוד אינו נכון."),
             status_code=status.HTTP_403_FORBIDDEN,
         )
     response = RedirectResponse("/admin", status_code=status.HTTP_303_SEE_OTHER)
@@ -163,14 +163,14 @@ async def admin_logout() -> RedirectResponse:
 @app.post("/admin/recommendations", response_class=HTMLResponse)
 async def create_recommendation(request: Request) -> HTMLResponse:
     if not is_admin(request):
-        return HTMLResponse("׳׳™׳ ׳”׳¨׳©׳׳”", status_code=status.HTTP_403_FORBIDDEN)
+        return HTMLResponse("אין הרשאה", status_code=status.HTTP_403_FORBIDDEN)
     form = await read_form(request)
     required = ("home_team", "away_team", "match_time", "pick", "confidence", "reason_1")
     if any(not form.get(field, "").strip() for field in required):
         return templates.TemplateResponse(
             request=request,
             name="admin.html",
-            context=admin_context(request, error="׳™׳© ׳׳׳׳ ׳׳× ׳›׳ ׳©׳“׳•׳× ׳”׳—׳•׳‘׳”."),
+            context=admin_context(request, error="יש למלא את כל שדות החובה."),
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         )
     reasons = [
@@ -192,7 +192,7 @@ async def create_recommendation(request: Request) -> HTMLResponse:
 @app.post("/admin/recommendations/{recommendation_id}/finish")
 async def close_recommendation(recommendation_id: int, request: Request):
     if not is_admin(request):
-        return HTMLResponse("׳׳™׳ ׳”׳¨׳©׳׳”", status_code=status.HTTP_403_FORBIDDEN)
+        return HTMLResponse("אין הרשאה", status_code=status.HTTP_403_FORBIDDEN)
     form = await read_form(request)
     success = form.get("result") == "success"
     finish_recommendation(recommendation_id, success)
@@ -202,7 +202,7 @@ async def close_recommendation(recommendation_id: int, request: Request):
 @app.get("/admin/backup")
 async def download_backup(request: Request) -> JSONResponse:
     if not is_admin(request):
-        return JSONResponse({"error": "׳׳™׳ ׳”׳¨׳©׳׳”"}, status_code=status.HTTP_403_FORBIDDEN)
+        return JSONResponse({"error": "אין הרשאה"}, status_code=status.HTTP_403_FORBIDDEN)
     return JSONResponse(
         export_database(),
         headers={"Content-Disposition": f'attachment; filename="winner-ai-backup-{date.today().isoformat()}.json"'},
@@ -254,7 +254,7 @@ async def new_round(payload: RoundRequest) -> dict:
 async def round_details(round_id: int) -> JSONResponse:
     item = get_round(round_id)
     if item is None:
-        return JSONResponse({"error": "׳”׳׳—׳–׳•׳¨ ׳׳ ׳ ׳׳¦׳"}, status_code=404)
+        return JSONResponse({"error": "המחזור לא נמצא"}, status_code=404)
     return JSONResponse(item)
 
 
@@ -266,7 +266,7 @@ async def teams(q: str = "") -> list[dict]:
 @app.post("/api/teams/import")
 async def teams_import(payload: TeamImportRequest, request: Request) -> JSONResponse:
     if not is_admin(request):
-        return JSONResponse({"error": "׳׳™׳ ׳”׳¨׳©׳׳”"}, status_code=403)
+        return JSONResponse({"error": "אין הרשאה"}, status_code=403)
     count = import_teams([team.model_dump() for team in payload.teams], payload.provider)
     return JSONResponse({"imported": count})
 
@@ -274,7 +274,7 @@ async def teams_import(payload: TeamImportRequest, request: Request) -> JSONResp
 @app.post("/api/teams/sync/{competition}")
 async def teams_sync(competition: str, request: Request) -> JSONResponse:
     if not is_admin(request):
-        return JSONResponse({"error": "׳׳™׳ ׳”׳¨׳©׳׳”"}, status_code=403)
+        return JSONResponse({"error": "אין הרשאה"}, status_code=403)
     try:
         items = football_data_teams(competition)
     except RuntimeError as error:
@@ -286,7 +286,7 @@ async def teams_sync(competition: str, request: Request) -> JSONResponse:
 @app.post("/api/matches/sync/{competition}")
 async def matches_sync(competition: str, request: Request) -> JSONResponse:
     if not is_admin(request):
-        return JSONResponse({"error": "׳׳™׳ ׳”׳¨׳©׳׳”"}, status_code=403)
+        return JSONResponse({"error": "אין הרשאה"}, status_code=403)
     try:
         items = football_data_matches(competition)
     except RuntimeError as error:
@@ -304,7 +304,7 @@ async def matches_upcoming() -> list[dict]:
 async def settle_tickets(run_id: int, payload: SettleRequest) -> JSONResponse:
     score = settle_ticket_run(run_id, payload.results)
     if score is None:
-        return JSONResponse({"error": "׳”׳”׳¨׳¦׳” ׳׳ ׳ ׳׳¦׳׳”"}, status_code=404)
+        return JSONResponse({"error": "ההרצה לא נמצאה"}, status_code=404)
     return JSONResponse({"best_score": score})
 
 
@@ -330,4 +330,3 @@ async def service_worker() -> FileResponse:
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "version": "1.0.0"}
-
