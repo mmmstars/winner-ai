@@ -9,7 +9,7 @@ FOOTBALL_DATA_URL = "https://api.football-data.org/v4"
 def football_data_teams(competition: str) -> list[dict]:
     token = os.getenv("FOOTBALL_DATA_TOKEN", "").strip()
     if not token:
-        raise RuntimeError("׳—׳¡׳¨ FOOTBALL_DATA_TOKEN")
+        raise RuntimeError("חסר FOOTBALL_DATA_TOKEN")
     code = competition.strip().upper()
     request = Request(
         f"{FOOTBALL_DATA_URL}/competitions/{code}/teams",
@@ -23,7 +23,7 @@ def football_data_teams(competition: str) -> list[dict]:
 def football_data_matches(competition: str) -> list[dict]:
     token = os.getenv("FOOTBALL_DATA_TOKEN", "").strip()
     if not token:
-        raise RuntimeError("׳—׳¡׳¨ FOOTBALL_DATA_TOKEN")
+        raise RuntimeError("חסר FOOTBALL_DATA_TOKEN")
     code = competition.strip().upper()
     request = Request(
         f"{FOOTBALL_DATA_URL}/competitions/{code}/matches?status=SCHEDULED",
@@ -62,4 +62,3 @@ def parse_football_data_matches(payload: dict, competition: str) -> list[dict]:
             "away_team": away.get("shortName") or away["name"],
         })
     return matches
-
