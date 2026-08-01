@@ -19,7 +19,7 @@ from app.round_service import create_automatic_round
 
 
 DEFAULT_COMPETITIONS = "PL,PD,BL1,SA,FL1,DED,PPL,CL"
-OPENLIGA_COMPETITIONS = ("bl1", "bl2", "dfb")
+OPENLIGA_COMPETITIONS = ("bl1", "bl2")
 _lock = threading.Lock()
 _started = False
 _status = {
@@ -60,7 +60,8 @@ def sync_all() -> dict:
     teams_total = 0
     matches_total = 0
     errors = []
-    if api_football_configured():
+    use_api_football_current = os.getenv("API_FOOTBALL_USE_CURRENT", "false").lower() == "true"
+    if api_football_configured() and use_api_football_current:
         try:
             api_matches = []
             league_details = {}
@@ -130,7 +131,15 @@ def sync_all() -> dict:
 def _worker() -> None:
     interval = max(60, int(os.getenv("FOOTBALL_DATA_SYNC_MINUTES", "1440"))) * 60
     while True:
-        sync_all()
+        try:
+            sync_all()
+        except Exception as error:
+            with _lock:
+                _status.update(
+                    running=False,
+                    last_finished_at=datetime.now(timezone.utc).isoformat(),
+                    errors=[f"שגיאת סנכרון: {type(error).__name__}"],
+                )
         threading.Event().wait(interval)
 
 
