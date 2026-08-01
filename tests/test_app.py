@@ -11,7 +11,7 @@ from app.main import app
 from app.providers import api_football_odds, parse_api_football_fixtures, parse_football_data_matches, parse_football_data_teams
 from app.sync_service import configured_competitions
 from app.elo import elo_probabilities, update_elo
-from app.poisson import poisson_probabilities
+from app.poisson import dixon_coles_probabilities, poisson_probabilities
 from app.ticket_optimizer import distance
 from app.team_names import hebrew_team_name
 
@@ -135,6 +135,9 @@ def test_elo_and_poisson_models():
     goals = poisson_probabilities(2.0, 0.8, 0.9, 1.6)
     assert goals["1"] > goals["2"]
     assert abs(sum(goals.values()) - 1) < 0.001
+    adjusted = dixon_coles_probabilities(1.2, 1.1, 1.1, 1.2)
+    assert abs(sum(adjusted.values()) - 1) < 0.001
+    assert adjusted["X"] != goals["X"]
 
 
 def test_market_analysis_contains_blended_model():
