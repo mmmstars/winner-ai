@@ -25,8 +25,8 @@
     {% else %}{% for number in range(1, 17) %}<article class="dad-row waiting-row"><div class="dad-number">{{ number }}</div><div class="dad-team dad-home-team"><small>קבוצה 1 · בית</small><strong>ממתין לקבוצה</strong></div><div class="dad-team dad-away-team"><small>קבוצה 2 · חוץ</small><strong>ממתין לקבוצה</strong></div><div class="dad-choice"><span class="choice">1</span><span class="choice">X</span><span class="choice">2</span></div><div class="waiting-reason">ממתין לנתונים</div></article>{% endfor %}{% endfor %}
   </section>
   <section class="dad-alternatives" aria-label="יצירת טפסים חלופיים">
-    <h2>כמה טפסים חלופיים להכין?</h2>
-    <div>{% for count in [2,4,6,8,10,12] %}<button type="button" data-ticket-count="{{ count }}">{{ count }} טפסים</button>{% endfor %}</div>
+    <h2>כמה טורים חלופיים להכין?</h2>
+    <div>{% for count in [2,4,6,8,10,12] %}<button type="button" data-ticket-count="{{ count }}">{{ count }} טורים</button>{% endfor %}</div>
     <p id="alternative-status" aria-live="polite"></p><div id="alternative-tickets"></div>
   </section>
   <p class="dad-warning">חשוב: אלו המלצות בלבד. אין ודאות בתוצאות ספורט.</p>
