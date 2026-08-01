@@ -20,6 +20,7 @@ from app.database import (
     initialize_database,
     get_ticket_history,
     get_ticket_statistics,
+    get_learning_summary,
     save_ticket_run,
     settle_ticket_run,
     create_round,
@@ -332,6 +333,11 @@ async def ticket_history() -> list[dict]:
 @app.get("/api/statistics")
 async def statistics() -> dict:
     return get_ticket_statistics()
+
+
+@app.get("/api/learning")
+async def learning_summary() -> dict:
+    return get_learning_summary()
 
 
 @app.post("/api/backtest")
