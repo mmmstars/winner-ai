@@ -425,6 +425,29 @@ def _rating(connection: sqlite3.Connection, team_name: str) -> float:
     return float(row["elo"]) if row else 1500.0
 
 
+def team_rating(team_name: str) -> float:
+    with connect() as connection:
+        return _rating(connection, team_name)
+
+
+def record_result(home_team: str, away_team: str, home_score: int, away_score: int) -> bool:
+    with connect() as connection:
+        row = connection.execute(
+            """SELECT m.id FROM external_matches m
+               JOIN teams h ON h.id=m.home_team_id JOIN teams a ON a.id=m.away_team_id
+               WHERE h.name_he=? AND a.name_he=? ORDER BY m.kickoff_at DESC LIMIT 1""",
+            (home_team, away_team),
+        ).fetchone()
+        if not row:
+            return False
+        connection.execute(
+            "UPDATE external_matches SET home_score=?,away_score=?,status='finished',updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (home_score, away_score, row["id"]),
+        )
+    settle_ready_runs()
+    return True
+
+
 def get_learning_summary() -> dict:
     with connect() as connection:
         totals = connection.execute(
