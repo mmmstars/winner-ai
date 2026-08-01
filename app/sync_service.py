@@ -2,7 +2,7 @@ import os
 import threading
 from datetime import datetime, timezone
 
-from app.database import import_external_odds, import_fixture_absences, import_matches, import_team_metrics, import_teams
+from app.database import import_external_odds, import_fixture_absences, import_matches, import_team_metrics, import_teams, settle_ready_runs
 from app.providers import (
     api_football_configured,
     api_football_fixtures,
@@ -116,6 +116,7 @@ def sync_all() -> dict:
         except RuntimeError as error:
             errors.append(f"{competition.upper()}: {error}")
     round_id = create_automatic_round()
+    settle_ready_runs()
     with _lock:
         _status.update(
             running=False,
