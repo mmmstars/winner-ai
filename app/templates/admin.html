@@ -29,6 +29,17 @@
     {% if error %}<p class="admin-message error">{{ error }}</p>{% endif %}
 
     <section class="admin-section">
+      <h2>החלפת טופס Winner</h2>
+      <p>הדבק בדיוק 16 שורות. בכל שורה: קבוצת בית | קבוצת חוץ</p>
+      <form class="admin-form" method="post" action="/admin/coupon">
+        <label>16 המשחקים
+          <textarea name="coupon" rows="16" required placeholder="מכבי חיפה | הפועל באר שבע"></textarea>
+        </label>
+        <button class="primary-button" type="submit">שמור והכן המלצות</button>
+      </form>
+    </section>
+
+    <section class="admin-section">
       <h2>הוספת המלצה</h2>
       <form class="admin-form" method="post" action="/admin/recommendations">
         <label>קבוצת בית<input name="home_team" required></label>
