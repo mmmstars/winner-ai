@@ -8,7 +8,7 @@ os.environ["ADMIN_PIN"] = "246810"
 
 from fastapi.testclient import TestClient
 from app.main import app
-from app.providers import parse_api_football_fixtures, parse_football_data_matches, parse_football_data_teams
+from app.providers import api_football_odds, parse_api_football_fixtures, parse_football_data_matches, parse_football_data_teams
 from app.sync_service import configured_competitions
 from app.elo import elo_probabilities, update_elo
 from app.poisson import poisson_probabilities
@@ -164,3 +164,13 @@ def test_ticket_optimizer_creates_diverse_unique_tickets():
 def test_israeli_team_names_are_normalized_to_hebrew():
     assert hebrew_team_name("Maccabi Haifa FC") == "מכבי חיפה"
     assert hebrew_team_name("Hapoel Be'er Sheva") == "הפועל באר שבע"
+
+
+def test_upcoming_matches_support_api_football_status_and_odds(monkeypatch):
+    payload = {"response": [{"bookmakers": [{"bets": [{"name": "Match Winner", "values": [{"value": "Home", "odd": "2.00"}, {"value": "Draw", "odd": "3.20"}, {"value": "Away", "odd": "3.50"}]}]}]}]}
+    monkeypatch.setenv("API_FOOTBALL_KEY", "test")
+    monkeypatch.setattr("app.providers.api_football_request", lambda path, params: payload)
+    odds = api_football_odds("77")
+    assert odds["home_odds"] == 2.0
+    assert odds["draw_odds"] == 3.2
+    assert odds["away_odds"] == 3.5
