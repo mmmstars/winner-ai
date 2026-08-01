@@ -5,7 +5,7 @@ from app.prediction import GameInput, market_analysis
 
 
 ISRAELI_COMPETITIONS = {"TSDB-4644", "TSDB-4966"}
-ISRAELI_PROVIDERS = {"official-israel-import"}
+ISRAELI_PROVIDERS = {"official-israel-import", "thesportsdb-israel"}
 
 
 def is_israeli_match(item: dict) -> bool:
@@ -60,7 +60,11 @@ def create_automatic_round() -> int | None:
             home_elo=team_rating(item["home_team"]),
             away_elo=team_rating(item["away_team"]),
             kickoff_at=item["kickoff_at"],
-            provider=item.get("provider", "openligadb"),
+            provider=(
+                "thesportsdb-israel"
+                if item.get("competition") in ISRAELI_COMPETITIONS
+                else item.get("provider", "manual")
+            ),
             external_match_id=item["external_id"],
         )
         for index, item in enumerate(unique, start=1)
