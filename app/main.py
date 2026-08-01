@@ -37,6 +37,7 @@ from app.providers import football_data_matches, football_data_teams
 from app.sync_service import start_auto_sync, sync_all, sync_status
 from app.backtest import BacktestRequest, evaluate
 from app.security import ProductionSecurityMiddleware
+from app.coupon_import import parse_coupon
 
 BASE_DIR = Path(__file__).resolve().parent
 app = FastAPI(title="Winner AI", version="1.0.0")
@@ -203,6 +204,24 @@ async def create_recommendation(request: Request) -> HTMLResponse:
         reasons,
     )
     return RedirectResponse("/admin?saved=1", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/admin/coupon")
+async def import_coupon(request: Request) -> HTMLResponse:
+    if not is_admin(request):
+        return HTMLResponse("אין הרשאה", status_code=status.HTTP_403_FORBIDDEN)
+    form = await read_form(request)
+    try:
+        games = parse_coupon(form.get("coupon", ""))
+        analyses = [market_analysis(game) for game in games]
+        create_round(f"טופס Winner {today_text()}", games[0].kickoff_at.isoformat(), games, analyses)
+    except ValueError as error:
+        return templates.TemplateResponse(
+            request=request, name="admin.html",
+            context=admin_context(request, error=str(error)),
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+    return RedirectResponse("/?coupon=updated", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.post("/admin/recommendations/{recommendation_id}/finish")
