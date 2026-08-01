@@ -43,6 +43,10 @@ def test_generate_settle_and_history():
     assert settled.status_code == 200
     assert settled.json()["best_score"] == 16
     assert client.get("/api/ticket-history").json()[0]["best_score"] == 16
+    learning = client.get("/api/learning").json()
+    assert learning["matches"] >= 16
+    assert learning["correct"] >= 16
+    assert learning["ratings"]
 
 
 def test_rejects_incomplete_coupon():
