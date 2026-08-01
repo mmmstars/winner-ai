@@ -657,7 +657,7 @@ def latest_round_recommendations() -> list[dict]:
         if latest is None:
             return []
         rows = connection.execute(
-            """SELECT f.game_number,f.home_team,f.away_team,f.kickoff_at,
+            """SELECT f.game_number,f.home_team,f.away_team,f.kickoff_at,f.provider,
                p.home_probability,p.draw_probability,p.away_probability,p.bookmaker_margin
                FROM fixtures f JOIN predictions p ON p.fixture_id=f.id
                WHERE f.round_id=? ORDER BY f.game_number""",
@@ -675,6 +675,7 @@ def latest_round_recommendations() -> list[dict]:
             kickoff = value.strftime("%d.%m · %H:%M")
         items.append({
             "home_team": row["home_team"], "away_team": row["away_team"], "time": kickoff,
+            "provider": row["provider"],
             "selection": selection,
             "confidence": f"{round(chances[selection] * 100)}%",
             "reasons": [
