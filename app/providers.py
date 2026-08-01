@@ -194,6 +194,8 @@ def parse_openliga_matches(payload: list[dict], league: str) -> tuple[list[dict]
                 "name_he": hebrew_team_name(team["teamName"]),
                 "aliases": team_aliases(team["teamName"], hebrew_team_name(team["teamName"])),
             }
+        results = item.get("matchResults") or []
+        final = max(results, key=lambda value: value.get("resultOrderID", 0)) if results else {}
         matches.append({
             "external_id": str(match_id),
             "competition": league.upper(),
@@ -203,6 +205,8 @@ def parse_openliga_matches(payload: list[dict], league: str) -> tuple[list[dict]
             "home_team": hebrew_team_name(home["teamName"]),
             "away_external_id": str(away.get("teamId", away["teamName"])),
             "away_team": hebrew_team_name(away["teamName"]),
+            "home_score": final.get("pointsTeam1"),
+            "away_score": final.get("pointsTeam2"),
         })
     return list(teams_by_id.values()), matches
 
@@ -259,6 +263,8 @@ def parse_api_football_fixtures(payload: dict, competition: str) -> tuple[list[d
             "home_team": hebrew_team_name(home["name"]),
             "away_external_id": str(away.get("id", "")),
             "away_team": hebrew_team_name(away["name"]),
+            "home_score": item.get("goals", {}).get("home"),
+            "away_score": item.get("goals", {}).get("away"),
         })
     return list(teams_by_id.values()), matches
 
@@ -301,5 +307,7 @@ def parse_football_data_matches(payload: dict, competition: str) -> list[dict]:
             "home_team": home.get("shortName") or home["name"],
             "away_external_id": str(away.get("id", "")),
             "away_team": away.get("shortName") or away["name"],
+            "home_score": item.get("score", {}).get("fullTime", {}).get("home"),
+            "away_score": item.get("score", {}).get("fullTime", {}).get("away"),
         })
     return matches
