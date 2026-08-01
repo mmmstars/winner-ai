@@ -1,5 +1,6 @@
 import json
 import os
+import statistics
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -78,6 +79,34 @@ def api_football_israel_leagues() -> list[dict]:
 def api_football_fixtures(league_id: int, season: int, limit: int = 30) -> tuple[list[dict], list[dict]]:
     payload = api_football_request("/fixtures", {"league": league_id, "season": season, "next": limit})
     return parse_api_football_fixtures(payload, str(league_id))
+
+
+def api_football_odds(fixture_id: str) -> dict | None:
+    payload = api_football_request("/odds", {"fixture": fixture_id})
+    prices = {"1": [], "X": [], "2": []}
+    labels = {"Home": "1", "Draw": "X", "Away": "2"}
+    for event in payload.get("response", []):
+        for bookmaker in event.get("bookmakers", []):
+            for bet in bookmaker.get("bets", []):
+                if bet.get("name") != "Match Winner":
+                    continue
+                for value in bet.get("values", []):
+                    key = labels.get(value.get("value"))
+                    try:
+                        odd = float(value.get("odd"))
+                    except (TypeError, ValueError):
+                        continue
+                    if key and odd > 1:
+                        prices[key].append(odd)
+    if not all(prices.values()):
+        return None
+    return {
+        "external_id": str(fixture_id),
+        "home_odds": round(statistics.median(prices["1"]), 3),
+        "draw_odds": round(statistics.median(prices["X"]), 3),
+        "away_odds": round(statistics.median(prices["2"]), 3),
+        "source": "api-football-median",
+    }
 
 
 def parse_api_football_fixtures(payload: dict, competition: str) -> tuple[list[dict], list[dict]]:
