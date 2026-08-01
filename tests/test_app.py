@@ -10,6 +10,8 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.providers import parse_api_football_fixtures, parse_football_data_matches, parse_football_data_teams
 from app.sync_service import configured_competitions
+from app.elo import elo_probabilities, update_elo
+from app.poisson import poisson_probabilities
 
 
 client = TestClient(app)
@@ -110,3 +112,19 @@ def test_api_football_israel_fixture_normalization():
     assert len(teams) == 2
     assert matches[0]["home_team"] == "Maccabi Haifa"
     assert matches[0]["away_team"] == "Hapoel Beer Sheva"
+
+
+def test_elo_and_poisson_models():
+    stronger = elo_probabilities(1700, 1450)
+    assert stronger["1"] > stronger["2"]
+    new_home, new_away = update_elo(1500, 1500, "1", 2)
+    assert new_home > 1500 and new_away < 1500
+    goals = poisson_probabilities(2.0, 0.8, 0.9, 1.6)
+    assert goals["1"] > goals["2"]
+    assert abs(sum(goals.values()) - 1) < 0.001
+
+
+def test_market_analysis_contains_blended_model():
+    response = client.post("/api/market-analysis", json=sample_games()[0])
+    assert response.status_code == 200
+    assert abs(sum(response.json()["model"].values()) - 1) < 0.001
