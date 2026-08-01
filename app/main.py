@@ -28,6 +28,7 @@ from app.database import (
     import_teams,
     list_teams,
     latest_round_recommendations,
+    latest_round,
     import_matches,
     upcoming_matches,
 )
@@ -249,6 +250,20 @@ async def create_tickets(payload: GenerateRequest) -> dict:
                     game = by_number[pick["game_number"]]
                     connection.execute("INSERT INTO ticket_picks(run_id,ticket_number,game_number,home_team,away_team,selection,confidence) VALUES(?,?,?,?,?,?,?)", (run_id,ticket["number"],game.number,game.home_team,game.away_team,pick["selection"],pick["confidence"]))
     return {"run_id": run_id, "tickets": tickets}
+
+
+@app.post("/api/current-tickets/{ticket_count}")
+async def create_current_tickets(ticket_count: int) -> JSONResponse:
+    if ticket_count not in {2, 4, 6, 8, 10, 12}:
+        return JSONResponse({"error": "כמות לא נתמכת"}, status_code=422)
+    current = latest_round()
+    if not current or len(current["games"]) != 16:
+        return JSONResponse({"error": "אין מחזור מלא"}, status_code=404)
+    games = [GameInput(number=game["game_number"], home_team=game["home_team"], away_team=game["away_team"], home_odds=game["home_odds"], draw_odds=game["draw_odds"], away_odds=game["away_odds"]) for game in current["games"]]
+    request = GenerateRequest(games=games, ticket_count=ticket_count, strategy="מאוזן")
+    provisional = generate(request, seed=0)
+    run_id = save_ticket_run(games, provisional, request.strategy)
+    return JSONResponse({"run_id": run_id, "tickets": generate(request, seed=run_id)})
 
 
 @app.post("/api/market-analysis")
