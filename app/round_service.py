@@ -10,7 +10,7 @@ def create_automatic_round() -> int | None:
     if existing:
         delete_round(existing)
     candidates = [prepare_odds(item) for item in upcoming_matches(100)]
-    candidates.sort(key=lambda item: (item.get("provider") != "public-israel", item["kickoff_at"]))
+    candidates.sort(key=lambda item: (item.get("provider") == "public-israel-estimate", item["kickoff_at"]))
     unique = []
     seen = set()
     for item in candidates:
@@ -34,6 +34,9 @@ def create_automatic_round() -> int | None:
             away_form=item["away_form"],
             home_missing=item["home_missing"],
             away_missing=item["away_missing"],
+            temperature=item.get("temperature"),
+            precipitation=item.get("precipitation"),
+            wind_speed=item.get("wind_speed"),
             home_goals_for=item["home_goals_for"],
             home_goals_against=item["home_goals_against"],
             away_goals_for=item["away_goals_for"],
@@ -58,6 +61,15 @@ def prepare_odds(item: dict) -> dict:
     if valid_odds(item):
         return item
     prepared = dict(item)
+    estimated = item.get("estimated_probabilities")
+    if estimated and all(float(estimated.get(key, 0)) > 0 for key in ("1", "X", "2")):
+        prepared.update(
+            home_odds=round(1 / float(estimated["1"]), 3),
+            draw_odds=round(1 / float(estimated["X"]), 3),
+            away_odds=round(1 / float(estimated["2"]), 3),
+            estimated_odds=True,
+        )
+        return prepared
     home_strength = item.get("home_form", 0.5) + 0.18 * (
         item.get("home_goals_for", 1.3) - item.get("home_goals_against", 1.3)
     )

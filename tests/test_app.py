@@ -5,6 +5,7 @@ from uuid import uuid4
 
 os.environ["WINNER_DB_PATH"] = str(Path(tempfile.gettempdir()) / f"winner-test-{uuid4()}.db")
 os.environ["ADMIN_PIN"] = "246810"
+os.environ["AUTO_SYNC_ENABLED"] = "false"
 
 from fastapi.testclient import TestClient
 from app.main import app
@@ -26,7 +27,7 @@ def sample_games() -> list[dict]:
 
 def test_health_and_hebrew_home():
     health = client.get("/health")
-    assert health.json() == {"status": "ok", "version": "1.0.0"}
+    assert health.json() == {"status": "ok", "version": "1.1.0"}
     assert health.headers["x-content-type-options"] == "nosniff"
     assert health.headers["x-frame-options"] == "DENY"
     page = client.get("/")

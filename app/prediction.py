@@ -29,6 +29,16 @@ class GameInput(BaseModel):
     away_form: float = Field(default=0.5, ge=0, le=1)
     home_missing: int = Field(default=0, ge=0, le=20)
     away_missing: int = Field(default=0, ge=0, le=20)
+    home_table_position: int | None = Field(default=None, ge=1, le=100)
+    away_table_position: int | None = Field(default=None, ge=1, le=100)
+    h2h_home_rate: float = Field(default=.3333, ge=0, le=1)
+    h2h_draw_rate: float = Field(default=.3333, ge=0, le=1)
+    h2h_away_rate: float = Field(default=.3334, ge=0, le=1)
+    home_cards: int | None = Field(default=None, ge=0, le=100)
+    away_cards: int | None = Field(default=None, ge=0, le=100)
+    temperature: float | None = Field(default=None, ge=-30, le=60)
+    precipitation: float | None = Field(default=None, ge=0, le=500)
+    wind_speed: float | None = Field(default=None, ge=0, le=250)
     kickoff_at: datetime | None = None
     provider: str = "manual"
     external_match_id: str = ""
@@ -86,6 +96,11 @@ class TeamImportRequest(BaseModel):
     teams: list[TeamImport] = Field(min_length=1, max_length=5000)
 
 
+class SourceImportRequest(BaseModel):
+    content: str = Field(min_length=1, max_length=2_000_000)
+    format: Literal["official_csv", "openfootball_json"] = "official_csv"
+
+
 def probabilities(game: GameInput) -> dict[str, float]:
     raw = {"1": 1 / game.home_odds, "X": 1 / game.draw_odds, "2": 1 / game.away_odds}
     total = sum(raw.values())
@@ -96,13 +111,22 @@ def market_analysis(game: GameInput) -> dict:
     implied = {"1": 1 / game.home_odds, "X": 1 / game.draw_odds, "2": 1 / game.away_odds}
     overround = sum(implied.values())
     fair = probabilities(game)
+    model = prediction_probabilities(game)
+    value = {key: round(model[key] * odd - 1, 4) for key, odd in zip(("1", "X", "2"), (game.home_odds, game.draw_odds, game.away_odds))}
+    best = max(model, key=model.get)
+    ordered = sorted(model.values(), reverse=True)
+    confidence = round(max(0, min(100, 45 + (ordered[0] - ordered[1]) * 100)), 1)
     return {
         "game_number": game.number,
         "implied": {key: round(value, 4) for key, value in implied.items()},
         "fair": fair,
         "bookmaker_margin": round((overround - 1) * 100, 2),
         "method": "simple_normalization",
-        "model": prediction_probabilities(game),
+        "model": model,
+        "prediction": best,
+        "confidence": confidence,
+        "value": value,
+        "value_selections": [key for key in ("1", "X", "2") if value[key] >= .05],
     }
 
 
@@ -121,10 +145,27 @@ def prediction_probabilities(game: GameInput) -> dict[str, float]:
         game.home_missing,
         game.away_missing,
     )
+    position_gap = 0.0
+    if game.home_table_position and game.away_table_position:
+        position_gap = max(-1.0, min(1.0, (game.away_table_position - game.home_table_position) / 12))
+    h2h_total = max(.0001, game.h2h_home_rate + game.h2h_draw_rate + game.h2h_away_rate)
+    context = {
+        "1": max(.05, game.h2h_home_rate / h2h_total + position_gap * .08),
+        "X": max(.05, game.h2h_draw_rate / h2h_total),
+        "2": max(.05, game.h2h_away_rate / h2h_total - position_gap * .08),
+    }
+    context_total = sum(context.values())
+    context = {key: value / context_total for key, value in context.items()}
     combined = {
-        key: market[key] * 0.45 + elo[key] * 0.20 + goals[key] * 0.20 + factors[key] * 0.15
+        key: market[key] * 0.42 + elo[key] * 0.18 + goals[key] * 0.20 + factors[key] * 0.15 + context[key] * .05
         for key in ("1", "X", "2")
     }
+    # Weather is intentionally a small modifier: only clearly severe conditions matter.
+    severe_weather = (game.precipitation or 0) >= 5 or (game.wind_speed or 0) >= 35 or (game.temperature or 20) >= 35
+    if severe_weather:
+        combined["X"] += .025
+        combined["1"] -= .0125
+        combined["2"] -= .0125
     total = sum(combined.values())
     return {key: round(value / total, 4) for key, value in combined.items()}
 

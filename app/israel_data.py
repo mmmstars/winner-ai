@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 
-SOURCE = "https://sports.walla.co.il/league/2913?r=1"
+SOURCE = "public-israel-estimate"
 STRENGTH = {
     "הפועל באר שבע": 1.00, "מכבי תל אביב": .96, "בית״ר ירושלים": .91,
     "מכבי חיפה": .88, "הפועל תל אביב": .77, "מכבי נתניה": .72,
@@ -28,5 +28,5 @@ def public_israel_data() -> tuple[list[dict], list[dict]]:
             home_p = max(.22, min(.62, .40 + gap * .45))
             draw_p = .28 if abs(gap) < .18 else .25
             away_p = 1 - home_p - draw_p
-            matches.append({"external_id": f"IL-2026-{round_number}-{game_number}", "competition": "ISR-WINNER", "kickoff_at": when, "status": "scheduled", "home_external_id": str(teams.index(home) + 1), "away_external_id": str(teams.index(away) + 1), "home_team": home, "away_team": away, "home_odds": round(1 / home_p, 3), "draw_odds": round(1 / draw_p, 3), "away_odds": round(1 / away_p, 3), "source": SOURCE})
+            matches.append({"external_id": f"IL-2026-{round_number}-{game_number}", "competition": "ISR-DEMO", "kickoff_at": when, "status": "scheduled", "home_external_id": str(teams.index(home) + 1), "away_external_id": str(teams.index(away) + 1), "home_team": home, "away_team": away, "estimated_probabilities": {"1": round(home_p, 4), "X": round(draw_p, 4), "2": round(away_p, 4)}, "source": SOURCE})
     return team_items, matches

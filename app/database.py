@@ -169,6 +169,32 @@ def initialize_database() -> None:
                 captured_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY(provider, external_match_id, external_team_id)
             );
+            CREATE TABLE IF NOT EXISTS source_audit (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider TEXT NOT NULL,
+                operation TEXT NOT NULL,
+                status TEXT NOT NULL,
+                item_count INTEGER NOT NULL DEFAULT 0,
+                message TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS model_weight_versions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                weights_json TEXT NOT NULL,
+                metrics_json TEXT NOT NULL,
+                approved INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS fixture_weather (
+                provider TEXT NOT NULL,
+                external_match_id TEXT NOT NULL,
+                temperature REAL,
+                precipitation REAL,
+                wind_speed REAL,
+                source TEXT NOT NULL,
+                captured_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY(provider, external_match_id)
+            );
             """
         )
         _ensure_column(connection, "fixtures", "kickoff_at", "TEXT")
@@ -596,6 +622,10 @@ def import_matches(items: list[dict], provider: str) -> int:
                    home_score=excluded.home_score,away_score=excluded.away_score,updated_at=CURRENT_TIMESTAMP""",
                 (provider, item["external_id"], item["competition"], item["kickoff_at"], item["status"], home_id, away_id, item.get("home_score"), item.get("away_score")),
             )
+        connection.execute(
+            "INSERT INTO source_audit(provider,operation,status,item_count) VALUES(?,?,?,?)",
+            (provider, "import_matches", "ok", len(items)),
+        )
     return len(items)
 
 
@@ -637,6 +667,17 @@ def import_fixture_absences(fixture_id: str, counts: dict[str, int], provider: s
     return len(counts)
 
 
+def import_fixture_weather(fixture_id: str, weather: dict, provider: str) -> None:
+    with connect() as connection:
+        connection.execute(
+            """INSERT INTO fixture_weather(provider,external_match_id,temperature,precipitation,wind_speed,source)
+               VALUES(?,?,?,?,?,?) ON CONFLICT(provider,external_match_id) DO UPDATE SET
+               temperature=excluded.temperature,precipitation=excluded.precipitation,
+               wind_speed=excluded.wind_speed,source=excluded.source,captured_at=CURRENT_TIMESTAMP""",
+            (provider, fixture_id, weather.get("temperature"), weather.get("precipitation"), weather.get("wind_speed"), weather.get("source", "open-meteo")),
+        )
+
+
 def upcoming_matches(limit: int = 100) -> list[dict]:
     with connect() as connection:
         rows = connection.execute(
@@ -647,12 +688,14 @@ def upcoming_matches(limit: int = 100) -> list[dict]:
                COALESCE(hm.goals_for,1.4) home_goals_for,COALESCE(hm.goals_against,1.2) home_goals_against,
                COALESCE(am.goals_for,1.2) away_goals_for,COALESCE(am.goals_against,1.4) away_goals_against,
                COALESCE(ha.missing,0) home_missing,COALESCE(aa.missing,0) away_missing
+               ,w.temperature,w.precipitation,w.wind_speed
                FROM external_matches m JOIN teams h ON h.id=m.home_team_id JOIN teams a ON a.id=m.away_team_id
                LEFT JOIN external_odds o ON o.provider=m.provider AND o.external_match_id=m.external_id
                LEFT JOIN team_metrics hm ON hm.provider=m.provider AND hm.external_team_id=h.external_id
                LEFT JOIN team_metrics am ON am.provider=m.provider AND am.external_team_id=a.external_id
                LEFT JOIN fixture_absences ha ON ha.provider=m.provider AND ha.external_match_id=m.external_id AND ha.external_team_id=h.external_id
                LEFT JOIN fixture_absences aa ON aa.provider=m.provider AND aa.external_match_id=m.external_id AND aa.external_team_id=a.external_id
+               LEFT JOIN fixture_weather w ON w.provider=m.provider AND w.external_match_id=m.external_id
                WHERE m.status IN ('scheduled','ns','tbd') ORDER BY m.kickoff_at LIMIT ?""", (limit,)
         ).fetchall()
     return [dict(row) for row in rows]
@@ -708,8 +751,10 @@ def latest_round_recommendations() -> list[dict]:
             return []
         rows = connection.execute(
             """SELECT f.game_number,f.home_team,f.away_team,f.kickoff_at,f.provider,
-               p.home_probability,p.draw_probability,p.away_probability,p.bookmaker_margin
+               p.home_probability,p.draw_probability,p.away_probability,p.bookmaker_margin,
+               o.home_odds,o.draw_odds,o.away_odds,o.source odds_source
                FROM fixtures f JOIN predictions p ON p.fixture_id=f.id
+               JOIN odds_snapshots o ON o.fixture_id=f.id
                WHERE f.round_id=? ORDER BY f.game_number""",
             (latest["id"],),
         ).fetchall()
@@ -719,6 +764,16 @@ def latest_round_recommendations() -> list[dict]:
         selection = max(chances, key=chances.get)
         if abs(chances["1"] - chances["2"]) < 0.085 and chances["X"] >= 0.26:
             selection = "X"
+        selected_odds = {"1": row["home_odds"], "X": row["draw_odds"], "2": row["away_odds"]}[selection]
+        expected_value = chances[selection] * selected_odds - 1
+        value_note = (
+            f"זוהה ערך משוער של {round(expected_value * 100)}% מול היחס שהוזן."
+            if expected_value >= .05 else "לא זוהה יתרון מספק מול היחס שהוזן."
+        )
+        source_note = (
+            "מקור הנתונים הוא לוח הדגמה; ההסתברויות אינן יחסי שוק."
+            if row["provider"] == "public-israel-estimate" else "הנתון אוחד ממקור חינמי מאושר."
+        )
         kickoff = "טרם נקבע"
         if row["kickoff_at"]:
             value = datetime.fromisoformat(row["kickoff_at"].replace("Z", "+00:00")).astimezone(ZoneInfo("Asia/Jerusalem"))
@@ -728,9 +783,12 @@ def latest_round_recommendations() -> list[dict]:
             "provider": row["provider"],
             "selection": selection,
             "confidence": f"{round(chances[selection] * 100)}%",
+            "value": round(expected_value, 4),
+            "is_value": expected_value >= .05,
             "reasons": [
                 f"הסתברות המודל הגבוהה ביותר: {round(chances[selection] * 100)}%.",
-                "התחזית משולבת ותתעדכן אוטומטית כשיתקבלו נתוני שוק נוספים.",
+                value_note,
+                source_note,
             ],
         })
     return items

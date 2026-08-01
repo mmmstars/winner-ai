@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import os
+import logging
 from datetime import date
 from pathlib import Path
 from urllib.parse import parse_qs
@@ -33,15 +34,21 @@ from app.database import (
     upcoming_matches,
     record_result,
 )
-from app.prediction import GameInput, GenerateRequest, RoundRequest, SettleRequest, TeamImportRequest, generate, market_analysis, power_probabilities
+from app.prediction import GameInput, GenerateRequest, RoundRequest, SettleRequest, TeamImportRequest, SourceImportRequest, generate, market_analysis, power_probabilities
 from app.providers import football_data_matches, football_data_teams
 from app.sync_service import start_auto_sync, sync_all, sync_status
 from app.backtest import BacktestRequest, evaluate
 from app.security import ProductionSecurityMiddleware
 from app.coupon_import import parse_coupon
+from app.source_adapters import parse_official_csv, parse_openfootball_json
+from app.source_registry import public_source_status
 
 BASE_DIR = Path(__file__).resolve().parent
-app = FastAPI(title="Winner AI", version="1.0.0")
+logging.basicConfig(
+    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+app = FastAPI(title="Winner AI", version="1.1.0")
 app.add_middleware(ProductionSecurityMiddleware)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
@@ -113,8 +120,8 @@ async def home(request: Request) -> HTMLResponse:
         request=request,
         name="home.html",
         context={"recommendations": recommendations, "today": today_text(), "has_round": bool(latest_round_recommendations()),
-                 "israel_source": any(item.get("provider") == "public-israel" for item in recommendations),
-                 "data_note": "מידע ציבורי · יחסים מוערכים" if any(item.get("provider") == "public-israel" for item in recommendations) else "נתוני ספק חיצוני"},
+                 "israel_source": any(item.get("provider") == "public-israel-estimate" for item in recommendations),
+                 "data_note": "הדגמה בלבד · ההסתברויות אינן יחסי שוק" if any(item.get("provider") == "public-israel-estimate" for item in recommendations) else "נתונים ממקור חינמי מאושר"},
     )
 
 
@@ -375,6 +382,26 @@ async def data_sync_status() -> dict:
     return sync_status()
 
 
+@app.get("/api/sources")
+async def sources() -> list[dict]:
+    return public_source_status()
+
+
+@app.post("/api/sources/import")
+async def source_import(payload: SourceImportRequest, request: Request) -> JSONResponse:
+    if not is_admin(request):
+        return JSONResponse({"error": "אין הרשאה"}, status_code=403)
+    try:
+        if payload.format == "official_csv":
+            items, provider = parse_official_csv(payload.content), "official-israel-import"
+        else:
+            items, provider = parse_openfootball_json(payload.content), "openfootball-import"
+        count = import_matches(items, provider)
+    except (ValueError, TypeError) as error:
+        return JSONResponse({"error": str(error)}, status_code=422)
+    return JSONResponse({"imported": count, "source": provider})
+
+
 @app.post("/api/sync/all")
 async def data_sync_all(request: Request) -> JSONResponse:
     if not is_admin(request):
@@ -422,4 +449,4 @@ async def service_worker() -> FileResponse:
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    return {"status": "ok", "version": "1.0.0"}
+    return {"status": "ok", "version": "1.1.0"}
