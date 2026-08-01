@@ -164,7 +164,7 @@ def api_football_absences(fixture_id: str) -> dict[str, int]:
     return counts
 
 
-def openliga_matches(league: str, season: int) -> tuple[list[dict], list[dict]]:
+def openliga_matches(league: str, season: int) -> tuple[list[dict], list[dict], list[dict]]:
     request = Request(
         f"{OPENLIGA_URL}/getmatchdata/{league}/{season}",
         headers={"User-Agent": "WinnerAI/1.0"},
@@ -174,7 +174,8 @@ def openliga_matches(league: str, season: int) -> tuple[list[dict], list[dict]]:
             payload = json.load(response)
     except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as error:
         raise RuntimeError("לא ניתן להתחבר כרגע ל-OpenLigaDB") from error
-    return parse_openliga_matches(payload, league)
+    teams, matches = parse_openliga_matches(payload, league)
+    return teams, matches, parse_openliga_team_metrics(payload)
 
 
 def parse_openliga_matches(payload: list[dict], league: str) -> tuple[list[dict], list[dict]]:
@@ -204,6 +205,37 @@ def parse_openliga_matches(payload: list[dict], league: str) -> tuple[list[dict]
             "away_team": hebrew_team_name(away["teamName"]),
         })
     return list(teams_by_id.values()), matches
+
+
+def parse_openliga_team_metrics(payload: list[dict]) -> list[dict]:
+    records: dict[str, list[tuple[str, int, int]]] = {}
+    for item in payload:
+        if not item.get("matchIsFinished"):
+            continue
+        home, away = item.get("team1", {}), item.get("team2", {})
+        results = item.get("matchResults") or []
+        if not results or home.get("teamId") is None or away.get("teamId") is None:
+            continue
+        final = max(results, key=lambda value: value.get("resultOrderID", 0))
+        try:
+            home_goals, away_goals = int(final["pointsTeam1"]), int(final["pointsTeam2"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        kickoff = item.get("matchDateTimeUTC") or item.get("matchDateTime") or ""
+        records.setdefault(str(home["teamId"]), []).append((kickoff, home_goals, away_goals))
+        records.setdefault(str(away["teamId"]), []).append((kickoff, away_goals, home_goals))
+    metrics = []
+    for team_id, games in records.items():
+        recent = sorted(games, reverse=True)[:5]
+        points = sum(3 if scored > allowed else 1 if scored == allowed else 0 for _, scored, allowed in recent)
+        metrics.append({
+            "external_id": team_id,
+            "form": round(points / max(1, len(recent) * 3), 4),
+            "goals_for": round(sum(game[1] for game in recent) / len(recent), 3),
+            "goals_against": round(sum(game[2] for game in recent) / len(recent), 3),
+            "matches": len(games),
+        })
+    return metrics
 
 
 def parse_api_football_fixtures(payload: dict, competition: str) -> tuple[list[dict], list[dict]]:
