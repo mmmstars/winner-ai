@@ -4,6 +4,7 @@
   background: #f7f4ec;
   color: #172118;
 }
+.header-actions{display:flex;align-items:center;gap:14px}.header-actions button{min-height:48px;padding:0 22px;border:0;border-radius:9px;background:#ffd400;color:#102a43;font-size:1.1rem;font-weight:900;cursor:pointer}
 
 /* Compact 16-game desktop coupon and parallel alternative coupons. */
 @media (min-width:821px){
