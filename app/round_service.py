@@ -29,6 +29,14 @@ def create_automatic_round() -> int | None:
             home_odds=item["home_odds"],
             draw_odds=item["draw_odds"],
             away_odds=item["away_odds"],
+            home_form=item["home_form"],
+            away_form=item["away_form"],
+            home_missing=item["home_missing"],
+            away_missing=item["away_missing"],
+            home_goals_for=item["home_goals_for"],
+            home_goals_against=item["home_goals_against"],
+            away_goals_for=item["away_goals_for"],
+            away_goals_against=item["away_goals_against"],
         )
         for index, item in enumerate(unique, start=1)
     ]
