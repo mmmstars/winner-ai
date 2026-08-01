@@ -109,6 +109,49 @@ def api_football_odds(fixture_id: str) -> dict | None:
     }
 
 
+def api_football_team_metrics(team_id: str, league_id: int, season: int) -> dict:
+    payload = api_football_request(
+        "/teams/statistics",
+        {"team": team_id, "league": league_id, "season": season},
+    )
+    data = payload.get("response", {})
+    form = str(data.get("form") or "")[-5:]
+    played = int(data.get("fixtures", {}).get("played", {}).get("total") or 0)
+    goals = data.get("goals", {})
+    averages = {
+        "for": goals.get("for", {}).get("average", {}).get("total"),
+        "against": goals.get("against", {}).get("average", {}).get("total"),
+    }
+    points = sum({"W": 3, "D": 1}.get(result, 0) for result in form)
+    try:
+        goals_for = float(averages["for"])
+        goals_against = float(averages["against"])
+    except (TypeError, ValueError):
+        goals_for, goals_against = 1.3, 1.3
+    return {
+        "external_id": str(team_id),
+        "form": round(points / max(1, len(form) * 3), 4),
+        "goals_for": goals_for,
+        "goals_against": goals_against,
+        "matches": played,
+    }
+
+
+def api_football_absences(fixture_id: str) -> dict[str, int]:
+    payload = api_football_request("/injuries", {"fixture": fixture_id})
+    counts: dict[str, int] = {}
+    seen = set()
+    for item in payload.get("response", []):
+        team_id = item.get("team", {}).get("id")
+        player_id = item.get("player", {}).get("id")
+        marker = (team_id, player_id)
+        if team_id is not None and marker not in seen:
+            seen.add(marker)
+            key = str(team_id)
+            counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
 def parse_api_football_fixtures(payload: dict, competition: str) -> tuple[list[dict], list[dict]]:
     teams_by_id = {}
     matches = []
