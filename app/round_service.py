@@ -52,5 +52,23 @@ def prepare_odds(item: dict) -> dict:
     if valid_odds(item):
         return item
     prepared = dict(item)
-    prepared.update(home_odds=2.35, draw_odds=3.20, away_odds=2.95, estimated_odds=True)
+    home_strength = item.get("home_form", 0.5) + 0.18 * (
+        item.get("home_goals_for", 1.3) - item.get("home_goals_against", 1.3)
+    )
+    away_strength = item.get("away_form", 0.5) + 0.18 * (
+        item.get("away_goals_for", 1.3) - item.get("away_goals_against", 1.3)
+    )
+    gap = home_strength - away_strength
+    if gap > 0.12:
+        chances = (0.50, 0.27, 0.23)
+    elif gap < -0.12:
+        chances = (0.23, 0.27, 0.50)
+    else:
+        chances = (0.36, 0.30, 0.34)
+    prepared.update(
+        home_odds=round(1 / chances[0], 3),
+        draw_odds=round(1 / chances[1], 3),
+        away_odds=round(1 / chances[2], 3),
+        estimated_odds=True,
+    )
     return prepared
