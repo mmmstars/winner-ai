@@ -571,6 +571,16 @@ def round_id_by_name(name: str) -> int | None:
     return int(row["id"]) if row else None
 
 
+def delete_round(round_id: int) -> None:
+    with connect() as connection:
+        fixture_ids = [row[0] for row in connection.execute("SELECT id FROM fixtures WHERE round_id=?", (round_id,))]
+        for fixture_id in fixture_ids:
+            connection.execute("DELETE FROM odds_snapshots WHERE fixture_id=?", (fixture_id,))
+            connection.execute("DELETE FROM predictions WHERE fixture_id=?", (fixture_id,))
+        connection.execute("DELETE FROM fixtures WHERE round_id=?", (round_id,))
+        connection.execute("DELETE FROM toto_rounds WHERE id=?", (round_id,))
+
+
 def get_round(round_id: int) -> dict | None:
     with connect() as connection:
         round_row = connection.execute(
