@@ -10,6 +10,7 @@
 <main class="dad-page">
   <header class="dad-header"><div><b>Winner AI{% if israel_source %} · ישראל{% endif %}</b><h1>ההמלצות של היום</h1></div><div class="header-actions"><time>{{ today }}</time><button type="button" onclick="location.reload()">רענון</button></div></header>
   <section class="dad-key" aria-label="הסבר הסימונים"><span><b>1</b> ניצחון בית</span><span><b>X</b> תיקו</span><span><b>2</b> ניצחון חוץ</span></section>
+  <p class="data-quality">{{ data_note }}</p>
   {% if not has_round %}<p class="data-status">עדיין אין מחזור מעודכן. לאחר סנכרון או שמירת מחזור, 16 ההמלצות יוצגו כאן אוטומטית.</p>{% endif %}
   <section class="dad-table" aria-label="טבלת ההמלצות">
     <div class="dad-head"><span>#</span><span>קבוצה 1</span><span>המלצה</span><span>קבוצה 2</span><span>למה?</span></div>
