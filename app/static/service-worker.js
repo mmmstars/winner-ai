@@ -1,8 +1,9 @@
-const CACHE_NAME = "winner-ai-v041";
+const CACHE_NAME = "winner-ai-v200";
 const APP_SHELL = [
   "/",
   "/history",
-  "/static/styles.css?v=041",
+  "/static/styles.css?v=200",
+  "/static/winner.js?v=200",
   "/static/manifest.webmanifest",
   "/static/icon.svg"
 ];
@@ -29,15 +30,17 @@ self.addEventListener("fetch", (event) => {
       fetch(event.request)
         .then((response) => {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put("/", copy));
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
           return response;
         })
-        .catch(() => caches.match("/"))
+        .catch(() => caches.match(event.request).then((cached) => cached || caches.match("/")))
     );
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
-  );
+  event.respondWith(fetch(event.request).then((response) => {
+    const copy = response.clone();
+    caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+    return response;
+  }).catch(() => caches.match(event.request)));
 });
