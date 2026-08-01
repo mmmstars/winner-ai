@@ -98,7 +98,7 @@ def test_admin_security_and_assets():
     assert login.status_code == 303
     assert client.get("/static/manifest.webmanifest").status_code == 200
     assert client.get("/service-worker.js").status_code == 200
-    assert "winner-ai-v202" in client.get("/service-worker.js").text
+    assert "winner-ai-v203" in client.get("/service-worker.js").text
 
 
 def test_provider_team_normalization():
