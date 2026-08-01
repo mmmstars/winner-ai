@@ -4,6 +4,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from app.team_names import hebrew_team_name, team_aliases
+
 
 FOOTBALL_DATA_URL = "https://api.football-data.org/v4"
 API_FOOTBALL_URL = "https://v3.football.api-sports.io"
@@ -89,16 +91,16 @@ def parse_api_football_fixtures(payload: dict, competition: str) -> tuple[list[d
             continue
         for team in (home, away):
             if team.get("id") is not None:
-                teams_by_id[str(team["id"])] = {"external_id": str(team["id"]), "name_he": team["name"], "aliases": [team["name"]]}
+                teams_by_id[str(team["id"])] = {"external_id": str(team["id"]), "name_he": hebrew_team_name(team["name"]), "aliases": team_aliases(team["name"], hebrew_team_name(team["name"]))}
         matches.append({
             "external_id": str(fixture["id"]),
             "competition": competition,
             "kickoff_at": fixture["date"],
             "status": fixture.get("status", {}).get("short", "NS").lower(),
             "home_external_id": str(home.get("id", "")),
-            "home_team": home["name"],
+            "home_team": hebrew_team_name(home["name"]),
             "away_external_id": str(away.get("id", "")),
-            "away_team": away["name"],
+            "away_team": hebrew_team_name(away["name"]),
         })
     return list(teams_by_id.values()), matches
 
