@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, model_validator
 from app.elo import elo_probabilities
 from app.poisson import dixon_coles_probabilities
 from app.ticket_optimizer import optimize
+from app.team_factors import factor_probabilities
 
 
 Selection = Literal["1", "X", "2"]
@@ -24,6 +25,10 @@ class GameInput(BaseModel):
     home_goals_against: float = Field(default=1.2, ge=0, le=10)
     away_goals_for: float = Field(default=1.2, ge=0, le=10)
     away_goals_against: float = Field(default=1.4, ge=0, le=10)
+    home_form: float = Field(default=0.5, ge=0, le=1)
+    away_form: float = Field(default=0.5, ge=0, le=1)
+    home_missing: int = Field(default=0, ge=0, le=20)
+    away_missing: int = Field(default=0, ge=0, le=20)
 
 
 class GenerateRequest(BaseModel):
@@ -107,8 +112,14 @@ def prediction_probabilities(game: GameInput) -> dict[str, float]:
         game.away_goals_for,
         game.away_goals_against,
     )
+    factors = factor_probabilities(
+        game.home_form,
+        game.away_form,
+        game.home_missing,
+        game.away_missing,
+    )
     combined = {
-        key: market[key] * 0.50 + elo[key] * 0.25 + goals[key] * 0.25
+        key: market[key] * 0.45 + elo[key] * 0.20 + goals[key] * 0.20 + factors[key] * 0.15
         for key in ("1", "X", "2")
     }
     total = sum(combined.values())
