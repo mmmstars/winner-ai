@@ -4,7 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#102a43"><title>המלצות היום | Winner AI</title>
   <link rel="manifest" href="/static/manifest.webmanifest"><link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/styles.css?v=200">
+  <link rel="stylesheet" href="/static/styles.css?v=201">
 </head>
 <body class="dad-body">
 <main class="dad-page">
@@ -23,8 +23,20 @@
     </article>
     {% else %}{% for number in range(1, 17) %}<article class="dad-row waiting-row"><div class="dad-number">{{ number }}</div><div class="dad-team dad-home-team"><small>קבוצה 1 · בית</small><strong>ממתין לקבוצה</strong></div><div class="dad-team dad-away-team"><small>קבוצה 2 · חוץ</small><strong>ממתין לקבוצה</strong></div><div class="dad-choice"><span class="choice">1</span><span class="choice">X</span><span class="choice">2</span></div><div class="waiting-reason">ממתין לנתונים</div></article>{% endfor %}{% endfor %}
   </section>
+  <section class="dad-alternatives" aria-label="יצירת טפסים חלופיים">
+    <h2>כמה טפסים חלופיים להכין?</h2>
+    <div>{% for count in [2,4,6,8,10,12] %}<button type="button" data-ticket-count="{{ count }}">{{ count }} טפסים</button>{% endfor %}</div>
+    <p id="alternative-status" aria-live="polite"></p><div id="alternative-tickets"></div>
+  </section>
   <p class="dad-warning">חשוב: אלו המלצות בלבד. אין ודאות בתוצאות ספורט.</p>
   <nav class="dad-nav"><a class="active" href="/">המלצות היום</a><a href="/history">היסטוריה</a><a href="/builder">יצירת טפסים</a></nav>
 </main>
-<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("/service-worker.js")}</script>
+<script>
+if("serviceWorker" in navigator){navigator.serviceWorker.register("/service-worker.js")}
+document.querySelectorAll("[data-ticket-count]").forEach(button=>button.onclick=async()=>{
+  const count=button.dataset.ticketCount,status=document.querySelector("#alternative-status"),box=document.querySelector("#alternative-tickets");
+  document.querySelectorAll("[data-ticket-count]").forEach(item=>item.disabled=true);status.textContent=`מכין ${count} טפסים...`;
+  try{const response=await fetch(`/api/current-tickets/${count}`,{method:"POST"}),data=await response.json();if(!response.ok)throw Error();status.textContent=`הוכנו ${count} טפסים חלופיים ונשמרו בהיסטוריה.`;box.innerHTML=data.tickets.map(ticket=>`<article><b>טופס ${ticket.number}</b><span>${ticket.picks.map(p=>p.selection).join(" · ")}</span></article>`).join("")}catch(error){status.textContent="לא הצלחנו להכין טפסים כרגע."}finally{document.querySelectorAll("[data-ticket-count]").forEach(item=>item.disabled=false)}
+});
+</script>
 </body></html>
