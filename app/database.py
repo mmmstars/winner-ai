@@ -5,6 +5,7 @@ from datetime import date
 from pathlib import Path
 
 from app.data import HISTORY, TODAY_RECOMMENDATIONS
+from app.elo import update_elo
 
 
 DB_PATH = Path(os.getenv("WINNER_DB_PATH", Path(__file__).resolve().parent.parent / "winner.db"))
@@ -117,6 +118,25 @@ def initialize_database() -> None:
                 away_team_id INTEGER NOT NULL,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(provider, external_id)
+            );
+            CREATE TABLE IF NOT EXISTS team_ratings (
+                team_name TEXT PRIMARY KEY,
+                elo REAL NOT NULL DEFAULT 1500,
+                matches INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS learning_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id INTEGER NOT NULL,
+                game_number INTEGER NOT NULL,
+                home_team TEXT NOT NULL,
+                away_team TEXT NOT NULL,
+                predicted_result TEXT NOT NULL,
+                actual_result TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                success INTEGER NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(run_id, game_number)
             );
             """
         )
@@ -293,7 +313,7 @@ def save_ticket_run(games: list, tickets: list[dict], strategy: str) -> int:
 def settle_ticket_run(run_id: int, results: list[str]) -> int | None:
     with connect() as connection:
         rows = connection.execute(
-            "SELECT id,ticket_number,game_number,selection FROM ticket_picks WHERE run_id=?",
+            "SELECT id,ticket_number,game_number,home_team,away_team,selection,confidence FROM ticket_picks WHERE run_id=?",
             (run_id,),
         ).fetchall()
         if not rows:
@@ -305,7 +325,50 @@ def settle_ticket_run(run_id: int, results: list[str]) -> int | None:
             scores[row["ticket_number"]] = scores.get(row["ticket_number"], 0) + int(row["selection"] == actual)
         best = max(scores.values())
         connection.execute("UPDATE ticket_runs SET best_score=? WHERE id=?", (best, run_id))
+        first_by_game = {}
+        for row in rows:
+            first_by_game.setdefault(row["game_number"], row)
+        for game_number, row in first_by_game.items():
+            actual = results[game_number - 1]
+            _learn_result(connection, run_id, row, actual)
     return best
+
+
+def _learn_result(connection: sqlite3.Connection, run_id: int, row: sqlite3.Row, actual: str) -> None:
+    home_rating = _rating(connection, row["home_team"])
+    away_rating = _rating(connection, row["away_team"])
+    new_home, new_away = update_elo(home_rating, away_rating, actual, 1)
+    for name, rating in ((row["home_team"], new_home), (row["away_team"], new_away)):
+        connection.execute(
+            """INSERT INTO team_ratings(team_name,elo,matches) VALUES(?,?,1)
+               ON CONFLICT(team_name) DO UPDATE SET elo=excluded.elo,matches=team_ratings.matches+1,updated_at=CURRENT_TIMESTAMP""",
+            (name, rating),
+        )
+    connection.execute(
+        """INSERT OR IGNORE INTO learning_events(
+           run_id,game_number,home_team,away_team,predicted_result,actual_result,confidence,success
+           ) VALUES(?,?,?,?,?,?,?,?)""",
+        (run_id, row["game_number"], row["home_team"], row["away_team"], row["selection"], actual, row["confidence"], int(row["selection"] == actual)),
+    )
+
+
+def _rating(connection: sqlite3.Connection, team_name: str) -> float:
+    row = connection.execute("SELECT elo FROM team_ratings WHERE team_name=?", (team_name,)).fetchone()
+    return float(row["elo"]) if row else 1500.0
+
+
+def get_learning_summary() -> dict:
+    with connect() as connection:
+        totals = connection.execute(
+            """SELECT COUNT(*) matches,COALESCE(SUM(success),0) correct,
+               COALESCE(ROUND(AVG(success)*100,2),0) accuracy FROM learning_events"""
+        ).fetchone()
+        ratings = connection.execute(
+            "SELECT team_name,ROUND(elo,2) elo,matches FROM team_ratings ORDER BY matches DESC,elo DESC LIMIT 50"
+        ).fetchall()
+    result = dict(totals)
+    result["ratings"] = [dict(row) for row in ratings]
+    return result
 
 
 def get_ticket_history() -> list[dict]:
@@ -346,12 +409,12 @@ def create_round(name: str, closes_at: str, games: list, analyses: list[dict]) -
                    ) VALUES(?,?,?,?,?)""",
                 (fixture_id, game.home_odds, game.draw_odds, game.away_odds, "manual"),
             )
-            fair = analysis["fair"]
+            model = analysis["model"]
             connection.execute(
                 """INSERT INTO predictions(
                    fixture_id,model_version,home_probability,draw_probability,
                    away_probability,bookmaker_margin) VALUES(?,?,?,?,?,?)""",
-                (fixture_id, "market-simple-v1", fair["1"], fair["X"], fair["2"], analysis["bookmaker_margin"]),
+                (fixture_id, "market-elo-poisson-v2", model["1"], model["X"], model["2"], analysis["bookmaker_margin"]),
             )
     return round_id
 
@@ -466,7 +529,7 @@ def latest_round_recommendations() -> list[dict]:
             "selection": selection,
             "confidence": f"{round(chances[selection] * 100)}%",
             "reasons": [
-                f"הסתברות השוק הגבוהה ביותר: {round(chances[selection] * 100)}%.",
+                f"הסתברות המודל הגבוהה ביותר: {round(chances[selection] * 100)}%.",
                 f"מרווח השוק שחושב: {row['bookmaker_margin']}%.",
             ],
         })
