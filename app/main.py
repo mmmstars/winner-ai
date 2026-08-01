@@ -33,6 +33,7 @@ from app.database import (
 from app.prediction import GameInput, GenerateRequest, RoundRequest, SettleRequest, TeamImportRequest, generate, market_analysis, power_probabilities
 from app.providers import football_data_matches, football_data_teams
 from app.sync_service import start_auto_sync, sync_all, sync_status
+from app.backtest import BacktestRequest, evaluate
 
 BASE_DIR = Path(__file__).resolve().parent
 app = FastAPI(title="Winner AI", version="1.0.0")
@@ -331,6 +332,11 @@ async def ticket_history() -> list[dict]:
 @app.get("/api/statistics")
 async def statistics() -> dict:
     return get_ticket_statistics()
+
+
+@app.post("/api/backtest")
+async def backtest(payload: BacktestRequest) -> dict:
+    return evaluate(payload.items)
 
 
 @app.get("/service-worker.js", include_in_schema=False)
