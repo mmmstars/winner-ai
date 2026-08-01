@@ -13,11 +13,13 @@ from app.providers import (
     football_data_configured,
     football_data_matches,
     football_data_teams,
+    openliga_matches,
 )
 from app.round_service import create_automatic_round
 
 
 DEFAULT_COMPETITIONS = "PL,PD,BL1,SA,FL1,DED,PPL,CL"
+OPENLIGA_COMPETITIONS = ("bl1", "bl2", "dfb")
 _lock = threading.Lock()
 _started = False
 _status = {
@@ -41,10 +43,11 @@ def sync_status() -> dict:
     with _lock:
         result = dict(_status)
         result["errors"] = list(_status["errors"])
-    result["configured"] = football_data_configured() or api_football_configured()
+    result["configured"] = True
     result["providers"] = {
         "api_football": api_football_configured(),
         "football_data": football_data_configured(),
+        "openligadb": True,
     }
     result["competitions"] = configured_competitions()
     return result
@@ -53,7 +56,7 @@ def sync_status() -> dict:
 def sync_all() -> dict:
     started = datetime.now(timezone.utc).isoformat()
     with _lock:
-        _status.update(running=True, configured=football_data_configured() or api_football_configured(), last_started_at=started, errors=[])
+        _status.update(running=True, configured=True, last_started_at=started, errors=[])
     teams_total = 0
     matches_total = 0
     errors = []
@@ -99,8 +102,14 @@ def sync_all() -> dict:
                 matches_total += import_matches(football_data_matches(competition), "football-data.org")
             except RuntimeError as error:
                 errors.append(f"{competition}: {error}")
-    if not api_football_configured() and not football_data_configured():
-        errors.append("חסר מפתח לספק נתוני ספורט")
+    season = datetime.now(timezone.utc).year
+    for competition in OPENLIGA_COMPETITIONS:
+        try:
+            teams, matches = openliga_matches(competition, season)
+            teams_total += import_teams(teams, "openligadb")
+            matches_total += import_matches(matches, "openligadb")
+        except RuntimeError as error:
+            errors.append(f"{competition.upper()}: {error}")
     round_id = create_automatic_round()
     with _lock:
         _status.update(
@@ -123,7 +132,7 @@ def _worker() -> None:
 
 def start_auto_sync() -> bool:
     global _started
-    if _started or not (football_data_configured() or api_football_configured()):
+    if _started:
         return False
     _started = True
     threading.Thread(target=_worker, name="football-data-sync", daemon=True).start()
