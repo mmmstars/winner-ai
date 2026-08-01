@@ -61,6 +61,12 @@
 .dad-choice{border-right:2px solid #d9e2ec}
 @media(max-width:820px){.dad-row{grid-template-columns:55px 1fr 1fr}.dad-number{grid-row:1/4}.dad-home-team{grid-column:2}.dad-away-team{grid-column:3}.dad-choice,.dad-reason,.waiting-reason{grid-column:2/4}.dad-team,.dad-choice,.dad-reason{border-right:0}.dad-away-team{border-right:1px solid #d9e2ec}}
 @media(min-width:1100px){body .dad-page{width:calc(100% - 16px);max-width:1900px}.dad-alternatives{padding:12px}.alternative-grid{width:100%}}
+@media(min-width:1100px){body .dad-head,body .dad-row{grid-template-columns:58px minmax(220px,320px) 205px minmax(220px,320px) minmax(300px,1fr)}body .dad-team{place-items:center;text-align:center}}
+.alternative-column-head,.alternative-column-row{grid-template-columns:25px repeat(3,minmax(0,1fr))!important}
+.alternative-column-head b{display:grid;place-items:center;font-size:16px}
+.alternative-column-row{min-height:28px!important}
+.alternative-pick-cell{display:grid!important;place-items:center!important;min-width:0;padding:2px 3px!important;border-right:1px solid #d9e2ec;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:800;letter-spacing:0!important}
+.alternative-pick-cell.selected{background:#dff5e8;color:#075f34;box-shadow:inset 0 -3px #08783f}
 
 * {
   box-sizing: border-box;
