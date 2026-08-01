@@ -12,6 +12,7 @@ from app.providers import parse_api_football_fixtures, parse_football_data_match
 from app.sync_service import configured_competitions
 from app.elo import elo_probabilities, update_elo
 from app.poisson import poisson_probabilities
+from app.ticket_optimizer import distance
 
 
 client = TestClient(app)
@@ -142,3 +143,11 @@ def test_backtest_metrics():
     assert data["accuracy"] == 0.5
     assert data["brier_score"] > 0
     assert data["log_loss"] > 0
+
+
+def test_ticket_optimizer_creates_diverse_unique_tickets():
+    response = client.post("/api/tickets", json={"games": sample_games(), "ticket_count": 5, "strategy": "נועז"})
+    assert response.status_code == 200
+    signatures = [tuple(pick["selection"] for pick in ticket["picks"]) for ticket in response.json()["tickets"]]
+    assert len(signatures) == len(set(signatures)) == 5
+    assert all(distance(signatures[0], signature) >= 1 for signature in signatures[1:])
