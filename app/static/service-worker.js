@@ -1,8 +1,8 @@
-const CACHE_NAME = "winner-ai-v209";
+const CACHE_NAME = "winner-ai-v210";
 const APP_SHELL = [
   "/",
   "/history",
-  "/static/styles.css?v=209",
+  "/static/styles.css?v=210",
   "/static/winner.js?v=200",
   "/static/manifest.webmanifest",
   "/static/icon.svg"
