@@ -4,7 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#102a43"><title>המלצות היום | Winner AI</title>
   <link rel="manifest" href="/static/manifest.webmanifest"><link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/styles.css?v=212">
+  <link rel="stylesheet" href="/static/styles.css?v=213">
 </head>
 <body class="dad-body">
 <main class="dad-page">
@@ -13,7 +13,8 @@
   <p class="data-quality">{{ data_note }}</p>
   {% if not has_round %}<p class="data-status">עדיין אין מחזור מעודכן. לאחר סנכרון או שמירת מחזור, 16 ההמלצות יוצגו כאן אוטומטית.</p>{% endif %}
   <section class="dad-table" aria-label="טבלת ההמלצות">
-    <div class="dad-head"><span>#</span><span>קבוצה 1</span><span>המלצה</span><span>קבוצה 2</span><span>למה?</span></div>
+    <h2 class="dad-table-title">המלצה מס׳ 1</h2>
+    <div class="dad-head"><span aria-hidden="true"></span><span>1</span><span>X</span><span>2</span><span>למה?</span></div>
     {% for item in recommendations %}
     <article class="dad-row">
       <div class="dad-number">{{ loop.index }}</div>
@@ -37,7 +38,7 @@ if("serviceWorker" in navigator){navigator.serviceWorker.register("/service-work
 document.querySelectorAll("[data-ticket-count]").forEach(button=>button.onclick=async()=>{
   const count=button.dataset.ticketCount,status=document.querySelector("#alternative-status"),box=document.querySelector("#alternative-tickets");
   document.querySelectorAll("[data-ticket-count]").forEach(item=>item.disabled=true);status.textContent=`מכין ${count} טפסים...`;
-  try{const response=await fetch(`/api/current-tickets/${count}`,{method:"POST"}),data=await response.json();if(!response.ok)throw Error();status.textContent=`הוכנו ${count} טורים חלופיים ונשמרו בהיסטוריה.`;const games=[...document.querySelectorAll(".dad-row:not(.waiting-row)")].map(row=>({home:row.querySelector(".dad-home-team strong").textContent,away:row.querySelector(".dad-away-team strong").textContent}));box.className="alternative-grid";box.innerHTML=data.tickets.map(ticket=>`<article class="alternative-table"><h3>המלצה טור ${ticket.number}</h3><div class="alternative-head alternative-match-head"><span></span><span></span><div><b>1</b><b>X</b><b>2</b></div><span></span></div>${ticket.picks.map((pick,index)=>`<div class="alternative-row alternative-match-row" aria-label="משחק ${index+1}"><b class="alternative-number">${index+1}</b><span class="alternative-team">${games[index].home}</span><div class="alternative-choice" aria-label="המלצה ${pick.selection}">${["1","X","2"].map(value=>`<i class="${value===pick.selection?"selected":""}">${value}</i>`).join("")}</div><span class="alternative-team">${games[index].away}</span></div>`).join("")}</article>`).join("")}catch(error){status.textContent="לא הצלחנו להכין טורים כרגע."}finally{document.querySelectorAll("[data-ticket-count]").forEach(item=>item.disabled=false)}
+  try{const response=await fetch(`/api/current-tickets/${count}`,{method:"POST"}),data=await response.json();if(!response.ok)throw Error();status.textContent=`הוכנו ${count} טורים חלופיים ונשמרו בהיסטוריה.`;const games=[...document.querySelectorAll(".dad-row:not(.waiting-row)")].map(row=>({home:row.querySelector(".dad-home-team strong").textContent,away:row.querySelector(".dad-away-team strong").textContent}));box.className="alternative-grid";box.innerHTML=data.tickets.map(ticket=>`<article class="alternative-table"><h3>המלצה טור ${ticket.number+1}</h3><div class="alternative-head alternative-match-head"><span></span><span></span><div><b>1</b><b>X</b><b>2</b></div><span></span></div>${ticket.picks.map((pick,index)=>`<div class="alternative-row alternative-match-row" aria-label="משחק ${index+1}"><b class="alternative-number">${index+1}</b><span class="alternative-team">${games[index].home}</span><div class="alternative-choice" aria-label="המלצה ${pick.selection}">${["1","X","2"].map(value=>`<i class="${value===pick.selection?"selected":""}">${value}</i>`).join("")}</div><span class="alternative-team">${games[index].away}</span></div>`).join("")}</article>`).join("")}catch(error){status.textContent="לא הצלחנו להכין טורים כרגע."}finally{document.querySelectorAll("[data-ticket-count]").forEach(item=>item.disabled=false)}
 });
 </script>
 </body></html>
