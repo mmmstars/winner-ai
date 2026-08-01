@@ -29,6 +29,9 @@ class GameInput(BaseModel):
     away_form: float = Field(default=0.5, ge=0, le=1)
     home_missing: int = Field(default=0, ge=0, le=20)
     away_missing: int = Field(default=0, ge=0, le=20)
+    kickoff_at: datetime | None = None
+    provider: str = "manual"
+    external_match_id: str = ""
 
 
 class GenerateRequest(BaseModel):
