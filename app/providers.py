@@ -12,6 +12,7 @@ from app.team_names import hebrew_team_name, team_aliases
 
 FOOTBALL_DATA_URL = "https://api.football-data.org/v4"
 API_FOOTBALL_URL = "https://v3.football.api-sports.io"
+OPENLIGA_URL = "https://api.openligadb.de"
 _api_football_lock = threading.Lock()
 _api_football_last_call = 0.0
 
@@ -161,6 +162,48 @@ def api_football_absences(fixture_id: str) -> dict[str, int]:
             key = str(team_id)
             counts[key] = counts.get(key, 0) + 1
     return counts
+
+
+def openliga_matches(league: str, season: int) -> tuple[list[dict], list[dict]]:
+    request = Request(
+        f"{OPENLIGA_URL}/getmatchdata/{league}/{season}",
+        headers={"User-Agent": "WinnerAI/1.0"},
+    )
+    try:
+        with urlopen(request, timeout=25) as response:
+            payload = json.load(response)
+    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as error:
+        raise RuntimeError("לא ניתן להתחבר כרגע ל-OpenLigaDB") from error
+    return parse_openliga_matches(payload, league)
+
+
+def parse_openliga_matches(payload: list[dict], league: str) -> tuple[list[dict], list[dict]]:
+    teams_by_id = {}
+    matches = []
+    for item in payload:
+        home, away = item.get("team1", {}), item.get("team2", {})
+        match_id = item.get("matchID")
+        kickoff = item.get("matchDateTimeUTC") or item.get("matchDateTime")
+        if match_id is None or not kickoff or not home.get("teamName") or not away.get("teamName"):
+            continue
+        for team in (home, away):
+            team_id = str(team.get("teamId", team["teamName"]))
+            teams_by_id[team_id] = {
+                "external_id": team_id,
+                "name_he": hebrew_team_name(team["teamName"]),
+                "aliases": team_aliases(team["teamName"], hebrew_team_name(team["teamName"])),
+            }
+        matches.append({
+            "external_id": str(match_id),
+            "competition": league.upper(),
+            "kickoff_at": kickoff,
+            "status": "finished" if item.get("matchIsFinished") else "scheduled",
+            "home_external_id": str(home.get("teamId", home["teamName"])),
+            "home_team": hebrew_team_name(home["teamName"]),
+            "away_external_id": str(away.get("teamId", away["teamName"])),
+            "away_team": hebrew_team_name(away["teamName"]),
+        })
+    return list(teams_by_id.values()), matches
 
 
 def parse_api_football_fixtures(payload: dict, competition: str) -> tuple[list[dict], list[dict]]:
