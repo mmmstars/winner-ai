@@ -37,6 +37,9 @@ def create_automatic_round() -> int | None:
             home_goals_against=item["home_goals_against"],
             away_goals_for=item["away_goals_for"],
             away_goals_against=item["away_goals_against"],
+            kickoff_at=item["kickoff_at"],
+            provider=item.get("provider", "openligadb"),
+            external_match_id=item["external_id"],
         )
         for index, item in enumerate(unique, start=1)
     ]
