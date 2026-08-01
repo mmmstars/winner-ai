@@ -4,18 +4,44 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#08783f"><title>היסטוריה | Winner AI</title>
   <link rel="manifest" href="/static/manifest.webmanifest"><link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/styles.css?v=041">
+  <link rel="stylesheet" href="/static/styles.css?v=105">
 </head>
 <body>
-<main class="page">
-  <header><p class="brand" lang="en">Winner AI</p><h1>היסטוריה</h1><p class="demo-badge">נתוני הדגמה</p><p class="intro">ההמלצות האחרונות שלנו.</p></header>
+<main class="page performance-page">
+  <header><p class="brand" lang="en">Winner AI</p><h1>ביצועים והיסטוריה</h1><p class="intro">כך המערכת מודדת את עצמה ומשתפרת.</p></header>
+  <section class="performance-grid" aria-label="סיכום ביצועים">
+    <article><strong>{{ statistics.runs }}</strong><span>טפסים שנוצרו</span></article>
+    <article><strong>{{ statistics.settled }}</strong><span>טפסים שנבדקו</span></article>
+    <article><strong>{{ statistics.average }}</strong><span>ממוצע ניחושים</span></article>
+    <article><strong>{{ statistics.best }}</strong><span>השיא שלנו</span></article>
+    <article><strong>{{ learning.accuracy }}%</strong><span>דיוק בחירות שנלמדו</span></article>
+  </section>
+
+  {% if ticket_history %}
+  <section class="performance-section">
+    <h2>טפסים אחרונים</h2>
+    <div class="performance-table">
+      <div class="performance-head"><span>מספר</span><span>שיטה</span><span>כמות</span><span>תוצאה מיטבית</span></div>
+      {% for run in ticket_history %}<div class="performance-row"><span>{{ run.id }}</span><span>{{ run.strategy }}</span><span>{{ run.ticket_count }}</span><strong>{% if run.best_score is not none %}{{ run.best_score }}/16{% else %}ממתין{% endif %}</strong></div>{% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if learning.ratings %}
+  <section class="performance-section">
+    <h2>דירוג קבוצות שנלמד</h2>
+    <div class="rating-list">{% for team in learning.ratings[:12] %}<div><strong>{{ team.team_name }}</strong><span>Elo {{ team.elo }} · {{ team.matches }} משחקים</span></div>{% endfor %}</div>
+  </section>
+  {% endif %}
+
+  <h2>המלצות קודמות</h2>
   <section class="history-list" aria-label="המלצות קודמות">
     {% for item in history %}
     <article class="history-card">
       <p class="history-date">{{ item.date }}</p><h2>{{ item.match }}</h2><p>{{ item.pick }}</p>
       <p class="result {% if item.success %}success{% else %}failure{% endif %}">{% if item.success %}✓{% else %}×{% endif %} {{ item.result }}</p>
     </article>
-    {% endfor %}
+    {% else %}<p class="responsible">עדיין אין המלצות שהסתיימו.</p>{% endfor %}
   </section>
   <nav class="bottom-nav" aria-label="ניווט ראשי"><a class="nav-link" href="/">🏠 היום</a><a class="nav-link active" href="/history" aria-current="page">📜 היסטוריה</a></nav>
 </main>
