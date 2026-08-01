@@ -111,7 +111,8 @@ async def home(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         request=request,
         name="home.html",
-        context={"recommendations": recommendations, "today": today_text(), "has_round": bool(latest_round_recommendations())},
+        context={"recommendations": recommendations, "today": today_text(), "has_round": bool(latest_round_recommendations()),
+                 "israel_source": any(item.get("provider") == "public-israel" for item in recommendations)},
     )
 
 
