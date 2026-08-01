@@ -37,6 +37,7 @@ def source_policy(key: str) -> SourcePolicy:
 
 
 def public_source_status() -> list[dict]:
+    active_keys = {"official-israel-import", "thesportsdb", "open-meteo", "manual"}
     return [
         {
             "key": item.key,
@@ -46,4 +47,5 @@ def public_source_status() -> list[dict]:
             "notes": item.notes_he,
         }
         for item in SOURCES.values()
+        if item.key in active_keys
     ]

@@ -12,13 +12,12 @@ from app.providers import (
     openliga_matches,
 )
 from app.round_service import create_automatic_round
-from app.israel_data import public_israel_data
 from app.backup import create_backup
 from app.community_providers import football_data_uk, statsbomb_matches, thesportsdb_league_events, open_meteo_weather, parse_pairs
 from app.normalization import normalized_name
 
 
-DEFAULT_COMPETITIONS = "PL,PD,BL1,SA,FL1,DED,PPL,CL"
+DEFAULT_COMPETITIONS = ""
 OPENLIGA_COMPETITIONS = ("bl1", "bl2")
 _lock = threading.Lock()
 _started = False
@@ -48,14 +47,15 @@ def sync_status() -> dict:
     result["configured"] = True
     result["providers"] = {
         "football_data": football_data_configured(),
-        "openligadb": True,
-        "public_israel": True,
-        "football_data_uk": True,
-        "statsbomb_open": True,
+        "openligadb": os.getenv("ENABLE_INTERNATIONAL_SOURCES", "false").lower() == "true",
+        "public_israel": False,
+        "football_data_uk": os.getenv("ENABLE_INTERNATIONAL_SOURCES", "false").lower() == "true",
+        "statsbomb_open": os.getenv("ENABLE_INTERNATIONAL_SOURCES", "false").lower() == "true",
         "thesportsdb": True,
         "open_meteo": bool(os.getenv("VENUE_COORDINATES_JSON", "").strip()),
     }
     result["competitions"] = configured_competitions()
+    result["israeli_leagues"] = ["ליגת העל", "הליגה הלאומית"]
     return result
 
 
@@ -66,14 +66,8 @@ def sync_all() -> dict:
     teams_total = 0
     matches_total = 0
     errors = []
-    try:
-        israel_teams, israel_matches = public_israel_data()
-        teams_total += import_teams(israel_teams, "public-israel-estimate")
-        matches_total += import_matches(israel_matches, "public-israel-estimate")
-    except Exception as error:
-        logger.exception("public Israel demo import failed")
-        errors.append(f"ישראל ציבורי: {type(error).__name__}")
-    if football_data_configured():
+    international_enabled = os.getenv("ENABLE_INTERNATIONAL_SOURCES", "false").lower() == "true"
+    if international_enabled and football_data_configured():
         for competition in configured_competitions():
             try:
                 teams_total += import_teams(football_data_teams(competition), "football-data.org")
@@ -81,26 +75,28 @@ def sync_all() -> dict:
             except RuntimeError as error:
                 logger.warning("football-data.org sync failed for %s: %s", competition, error)
                 errors.append(f"{competition}: {error}")
-    try:
+    if international_enabled:
+      try:
         season_code = os.getenv("FOOTBALL_DATA_UK_SEASON", "2526").strip()
         divisions = [item.strip() for item in os.getenv("FOOTBALL_DATA_UK_DIVISIONS", "E0,D1,SP1,I1,F1").split(",") if item.strip()]
         teams, matches, odds = football_data_uk(season_code, divisions)
         teams_total += import_teams(teams, "football-data.co.uk")
         matches_total += import_matches(matches, "football-data.co.uk")
         import_external_odds(odds, "football-data.co.uk")
-    except RuntimeError as error:
+      except RuntimeError as error:
         logger.warning("Football-Data.co.uk sync failed: %s", error)
         errors.append(f"Football-Data.co.uk: {error}")
-    try:
+    if international_enabled:
+      try:
         pairs = parse_pairs(os.getenv("STATSBOMB_COMPETITION_SEASONS", "223:282"))
         teams, matches = statsbomb_matches(pairs)
         teams_total += import_teams(teams, "statsbomb-open")
         matches_total += import_matches(matches, "statsbomb-open")
-    except (RuntimeError, ValueError, json.JSONDecodeError) as error:
+      except (RuntimeError, ValueError, json.JSONDecodeError) as error:
         logger.warning("StatsBomb sync failed: %s", error)
         errors.append(f"StatsBomb: {error}")
     try:
-        league_ids = [item.strip() for item in os.getenv("THESPORTSDB_LEAGUE_IDS", "4328,4335").split(",") if item.strip()]
+        league_ids = [item.strip() for item in os.getenv("THESPORTSDB_LEAGUE_IDS", "4644,4966").split(",") if item.strip()]
         season_name = os.getenv("THESPORTSDB_SEASON", "2026-2027")
         teams, matches = thesportsdb_league_events(league_ids, season_name)
         teams_total += import_teams(teams, "thesportsdb")
@@ -109,7 +105,7 @@ def sync_all() -> dict:
         logger.warning("TheSportsDB sync failed: %s", error)
         errors.append(f"TheSportsDB: {error}")
     season = datetime.now(timezone.utc).year
-    for competition in OPENLIGA_COMPETITIONS:
+    for competition in OPENLIGA_COMPETITIONS if international_enabled else ():
         try:
             previous_teams, previous_matches, previous_metrics = openliga_matches(competition, season - 1)
             teams_total += import_teams(previous_teams, "openligadb")

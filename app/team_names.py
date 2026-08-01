@@ -33,6 +33,17 @@ ISRAELI_TEAM_NAMES = {
     "hapoel umm al-fahm": "הפועל אום אל-פחם",
     "hapoel nof hagalil": "הפועל נוף הגליל",
     "kafr qasim": "מ.ס. כפר קאסם",
+    "hapoel akko": "הפועל עכו",
+    "hapoel afula": "הפועל עפולה",
+    "hapoel ra'anana": "הפועל רעננה",
+    "hapoel tel-aviv": "הפועל תל אביב",
+    "hapoel ironi kiryat shmona": "עירוני קריית שמונה",
+    "hapoel kfar shalem": "הפועל כפר שלם",
+    "hapoel kiryat yam": "הפועל קריית ים",
+    "ironi modi'in": "עירוני מודיעין",
+    "maccabi akhi nazareth": "מכבי אחי נצרת",
+    "maccabi kabilio jaffa": "מכבי קביליו יפו",
+    "maccabi kiryat gat": "מכבי קריית גת",
 }
 
 

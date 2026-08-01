@@ -42,6 +42,7 @@ from app.security import ProductionSecurityMiddleware
 from app.coupon_import import parse_coupon
 from app.source_adapters import parse_official_csv, parse_openfootball_json
 from app.source_registry import public_source_status
+from app.round_service import is_israeli_match
 
 BASE_DIR = Path(__file__).resolve().parent
 logging.basicConfig(
@@ -86,7 +87,8 @@ def admin_context(request: Request, **extra: object) -> dict:
 
 
 def recommendations_for_coupon() -> list[dict]:
-    round_items = latest_round_recommendations()
+    # Never expose an old foreign/demo round as an Israeli Winner coupon.
+    round_items = [item for item in latest_round_recommendations() if is_israeli_match(item)]
     if round_items:
         return round_items
     items = []

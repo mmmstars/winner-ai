@@ -118,8 +118,9 @@ def test_provider_match_normalization():
 def test_sync_status_and_security():
     status = client.get("/api/sync/status")
     assert status.status_code == 200
-    assert "PL" in status.json()["competitions"]
-    assert configured_competitions()
+    assert status.json()["competitions"] == []
+    assert status.json()["israeli_leagues"] == ["ליגת העל", "הליגה הלאומית"]
+    assert configured_competitions() == []
     client.post("/admin/logout")
     assert client.post("/api/sync/all").status_code == 403
 

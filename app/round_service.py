@@ -4,13 +4,29 @@ from app.database import create_round, delete_round, round_id_by_name, team_rati
 from app.prediction import GameInput, market_analysis
 
 
+ISRAELI_COMPETITIONS = {"TSDB-4644", "TSDB-4966"}
+ISRAELI_PROVIDERS = {"official-israel-import"}
+
+
+def is_israeli_match(item: dict) -> bool:
+    """Return true only for verified Israeli league/import records."""
+    return (
+        item.get("provider") in ISRAELI_PROVIDERS
+        or item.get("competition") in ISRAELI_COMPETITIONS
+    )
+
+
 def create_automatic_round() -> int | None:
     name = f"מחזור אוטומטי {date.today().strftime('%d.%m.%Y')}"
     existing = round_id_by_name(name)
     if existing:
         delete_round(existing)
-    candidates = [prepare_odds(item) for item in upcoming_matches(100)]
-    candidates.sort(key=lambda item: (item.get("provider") == "public-israel-estimate", item["kickoff_at"]))
+    candidates = [
+        prepare_odds(item)
+        for item in upcoming_matches(250)
+        if is_israeli_match(item)
+    ]
+    candidates.sort(key=lambda item: item["kickoff_at"])
     unique = []
     seen = set()
     for item in candidates:
