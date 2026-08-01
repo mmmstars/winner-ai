@@ -3,6 +3,8 @@ import os
 import sqlite3
 from datetime import date
 from pathlib import Path
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from app.data import HISTORY, TODAY_RECOMMENDATIONS
 from app.elo import update_elo
@@ -169,6 +171,11 @@ def initialize_database() -> None:
             );
             """
         )
+        _ensure_column(connection, "fixtures", "kickoff_at", "TEXT")
+        _ensure_column(connection, "fixtures", "provider", "TEXT NOT NULL DEFAULT 'manual'")
+        _ensure_column(connection, "fixtures", "external_match_id", "TEXT")
+        _ensure_column(connection, "external_matches", "home_score", "INTEGER")
+        _ensure_column(connection, "external_matches", "away_score", "INTEGER")
         if connection.execute("SELECT COUNT(*) FROM recommendations").fetchone()[0] == 0:
             for item in TODAY_RECOMMENDATIONS:
                 add_recommendation(
@@ -186,6 +193,11 @@ def initialize_database() -> None:
                 "INSERT INTO history(event_date, match_name, pick, result, success) VALUES (?, ?, ?, ?, ?)",
                 [(item["date"], item["match"], item["pick"], item["result"], int(item["success"])) for item in HISTORY],
             )
+
+
+def _ensure_column(connection: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    if column not in {row[1] for row in connection.execute(f"PRAGMA table_info({table})")}:
+        connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def add_recommendation(
@@ -363,6 +375,33 @@ def settle_ticket_run(run_id: int, results: list[str]) -> int | None:
     return best
 
 
+def settle_ready_runs() -> int:
+    with connect() as connection:
+        run_ids = [row[0] for row in connection.execute("SELECT id FROM ticket_runs WHERE best_score IS NULL")]
+    settled = 0
+    for run_id in run_ids:
+        with connect() as connection:
+            games = connection.execute(
+                """SELECT game_number,home_team,away_team FROM ticket_picks
+                   WHERE run_id=? AND ticket_number=1 ORDER BY game_number""", (run_id,)
+            ).fetchall()
+            results = []
+            for game in games:
+                score = connection.execute(
+                    """SELECT m.home_score,m.away_score FROM external_matches m
+                       JOIN teams h ON h.id=m.home_team_id JOIN teams a ON a.id=m.away_team_id
+                       WHERE h.name_he=? AND a.name_he=? AND m.home_score IS NOT NULL AND m.away_score IS NOT NULL
+                       ORDER BY m.kickoff_at DESC LIMIT 1""",
+                    (game["home_team"], game["away_team"]),
+                ).fetchone()
+                if not score:
+                    break
+                results.append("1" if score["home_score"] > score["away_score"] else "2" if score["home_score"] < score["away_score"] else "X")
+        if len(results) == 16 and settle_ticket_run(run_id, results) is not None:
+            settled += 1
+    return settled
+
+
 def _learn_result(connection: sqlite3.Connection, run_id: int, row: sqlite3.Row, actual: str) -> None:
     home_rating = _rating(connection, row["home_team"])
     away_rating = _rating(connection, row["away_team"])
@@ -428,8 +467,11 @@ def create_round(name: str, closes_at: str, games: list, analyses: list[dict]) -
             _upsert_team(connection, game.home_team)
             _upsert_team(connection, game.away_team)
             fixture = connection.execute(
-                "INSERT INTO fixtures(round_id,game_number,home_team,away_team) VALUES(?,?,?,?)",
-                (round_id, game.number, game.home_team, game.away_team),
+                """INSERT INTO fixtures(round_id,game_number,home_team,away_team,kickoff_at,provider,external_match_id)
+                   VALUES(?,?,?,?,?,?,?)""",
+                (round_id, game.number, game.home_team, game.away_team,
+                 game.kickoff_at.isoformat() if game.kickoff_at else None,
+                 game.provider, game.external_match_id),
             )
             fixture_id = int(fixture.lastrowid)
             connection.execute(
@@ -497,11 +539,12 @@ def import_matches(items: list[dict], provider: str) -> int:
             home_id = _upsert_team(connection, item["home_team"], provider, item["home_external_id"])
             away_id = _upsert_team(connection, item["away_team"], provider, item["away_external_id"])
             connection.execute(
-                """INSERT INTO external_matches(provider,external_id,competition,kickoff_at,status,home_team_id,away_team_id)
-                   VALUES(?,?,?,?,?,?,?) ON CONFLICT(provider,external_id) DO UPDATE SET
+                """INSERT INTO external_matches(provider,external_id,competition,kickoff_at,status,home_team_id,away_team_id,home_score,away_score)
+                   VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(provider,external_id) DO UPDATE SET
                    competition=excluded.competition,kickoff_at=excluded.kickoff_at,status=excluded.status,
-                   home_team_id=excluded.home_team_id,away_team_id=excluded.away_team_id,updated_at=CURRENT_TIMESTAMP""",
-                (provider, item["external_id"], item["competition"], item["kickoff_at"], item["status"], home_id, away_id),
+                   home_team_id=excluded.home_team_id,away_team_id=excluded.away_team_id,
+                   home_score=excluded.home_score,away_score=excluded.away_score,updated_at=CURRENT_TIMESTAMP""",
+                (provider, item["external_id"], item["competition"], item["kickoff_at"], item["status"], home_id, away_id, item.get("home_score"), item.get("away_score")),
             )
     return len(items)
 
@@ -547,7 +590,7 @@ def import_fixture_absences(fixture_id: str, counts: dict[str, int], provider: s
 def upcoming_matches(limit: int = 100) -> list[dict]:
     with connect() as connection:
         rows = connection.execute(
-            """SELECT m.id,m.external_id,m.competition,m.kickoff_at,m.status,
+            """SELECT m.id,m.provider,m.external_id,m.competition,m.kickoff_at,m.status,
                h.name_he home_team,a.name_he away_team,h.external_id home_external_id,a.external_id away_external_id,
                o.home_odds,o.draw_odds,o.away_odds,
                COALESCE(hm.form,0.5) home_form,COALESCE(am.form,0.5) away_form,
@@ -589,7 +632,8 @@ def get_round(round_id: int) -> dict | None:
         if round_row is None:
             return None
         rows = connection.execute(
-            """SELECT f.game_number,f.home_team,f.away_team,o.home_odds,o.draw_odds,o.away_odds,
+            """SELECT f.game_number,f.home_team,f.away_team,f.kickoff_at,f.provider,f.external_match_id,
+               o.home_odds,o.draw_odds,o.away_odds,
                p.home_probability,p.draw_probability,p.away_probability,p.bookmaker_margin
                FROM fixtures f JOIN odds_snapshots o ON o.fixture_id=f.id
                JOIN predictions p ON p.fixture_id=f.id
@@ -613,7 +657,7 @@ def latest_round_recommendations() -> list[dict]:
         if latest is None:
             return []
         rows = connection.execute(
-            """SELECT f.game_number,f.home_team,f.away_team,
+            """SELECT f.game_number,f.home_team,f.away_team,f.kickoff_at,
                p.home_probability,p.draw_probability,p.away_probability,p.bookmaker_margin
                FROM fixtures f JOIN predictions p ON p.fixture_id=f.id
                WHERE f.round_id=? ORDER BY f.game_number""",
@@ -625,8 +669,12 @@ def latest_round_recommendations() -> list[dict]:
         selection = max(chances, key=chances.get)
         if abs(chances["1"] - chances["2"]) < 0.085 and chances["X"] >= 0.26:
             selection = "X"
+        kickoff = "טרם נקבע"
+        if row["kickoff_at"]:
+            value = datetime.fromisoformat(row["kickoff_at"].replace("Z", "+00:00")).astimezone(ZoneInfo("Asia/Jerusalem"))
+            kickoff = value.strftime("%d.%m · %H:%M")
         items.append({
-            "home_team": row["home_team"], "away_team": row["away_team"], "time": "טרם נקבע",
+            "home_team": row["home_team"], "away_team": row["away_team"], "time": kickoff,
             "selection": selection,
             "confidence": f"{round(chances[selection] * 100)}%",
             "reasons": [
