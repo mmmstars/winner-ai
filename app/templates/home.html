@@ -4,7 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#102a43"><title>המלצות היום | Winner AI</title>
   <link rel="manifest" href="/static/manifest.webmanifest"><link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/styles.css?v=201">
+  <link rel="stylesheet" href="/static/styles.css?v=202">
 </head>
 <body class="dad-body">
 <main class="dad-page">
@@ -12,13 +12,13 @@
   <section class="dad-key" aria-label="הסבר הסימונים"><span><b>1</b> ניצחון בית</span><span><b>X</b> תיקו</span><span><b>2</b> ניצחון חוץ</span></section>
   {% if not has_round %}<p class="data-status">עדיין אין מחזור מעודכן. לאחר סנכרון או שמירת מחזור, 16 ההמלצות יוצגו כאן אוטומטית.</p>{% endif %}
   <section class="dad-table" aria-label="טבלת ההמלצות">
-    <div class="dad-head"><span>#</span><span>קבוצה 1</span><span>קבוצה 2</span><span>המלצה</span><span>למה?</span></div>
+    <div class="dad-head"><span>#</span><span>קבוצה 1</span><span>המלצה</span><span>קבוצה 2</span><span>למה?</span></div>
     {% for item in recommendations %}
     <article class="dad-row">
       <div class="dad-number">{{ loop.index }}</div>
       <div class="dad-team dad-home-team"><small>קבוצה 1 · בית</small><strong>{{ item.home_team }}</strong><span>שעה {{ item.time }}</span></div>
-      <div class="dad-team dad-away-team"><small>קבוצה 2 · חוץ</small><strong>{{ item.away_team }}</strong></div>
       <div class="dad-choice" aria-label="המלצה {{ item.selection }}"><span class="choice {% if item.selection == '1' %}chosen{% endif %}">1</span><span class="choice {% if item.selection == 'X' %}chosen{% endif %}">X</span><span class="choice {% if item.selection == '2' %}chosen{% endif %}">2</span></div>
+      <div class="dad-team dad-away-team"><small>קבוצה 2 · חוץ</small><strong>{{ item.away_team }}</strong></div>
       <details class="dad-reason"><summary>למה?</summary><ul>{% for reason in item.reasons %}<li>{{ reason }}</li>{% endfor %}</ul></details>
     </article>
     {% else %}{% for number in range(1, 17) %}<article class="dad-row waiting-row"><div class="dad-number">{{ number }}</div><div class="dad-team dad-home-team"><small>קבוצה 1 · בית</small><strong>ממתין לקבוצה</strong></div><div class="dad-team dad-away-team"><small>קבוצה 2 · חוץ</small><strong>ממתין לקבוצה</strong></div><div class="dad-choice"><span class="choice">1</span><span class="choice">X</span><span class="choice">2</span></div><div class="waiting-reason">ממתין לנתונים</div></article>{% endfor %}{% endfor %}
@@ -36,7 +36,7 @@ if("serviceWorker" in navigator){navigator.serviceWorker.register("/service-work
 document.querySelectorAll("[data-ticket-count]").forEach(button=>button.onclick=async()=>{
   const count=button.dataset.ticketCount,status=document.querySelector("#alternative-status"),box=document.querySelector("#alternative-tickets");
   document.querySelectorAll("[data-ticket-count]").forEach(item=>item.disabled=true);status.textContent=`מכין ${count} טפסים...`;
-  try{const response=await fetch(`/api/current-tickets/${count}`,{method:"POST"}),data=await response.json();if(!response.ok)throw Error();status.textContent=`הוכנו ${count} טפסים חלופיים ונשמרו בהיסטוריה.`;box.innerHTML=data.tickets.map(ticket=>`<article><b>טופס ${ticket.number}</b><span>${ticket.picks.map(p=>p.selection).join(" · ")}</span></article>`).join("")}catch(error){status.textContent="לא הצלחנו להכין טפסים כרגע."}finally{document.querySelectorAll("[data-ticket-count]").forEach(item=>item.disabled=false)}
+  try{const response=await fetch(`/api/current-tickets/${count}`,{method:"POST"}),data=await response.json();if(!response.ok)throw Error();status.textContent=`הוכנו ${count} טפסים חלופיים ונשמרו בהיסטוריה.`;const games=[...document.querySelectorAll(".dad-row:not(.waiting-row)")].map(row=>({home:row.querySelector(".dad-home-team strong").textContent,away:row.querySelector(".dad-away-team strong").textContent}));box.className="alternative-grid";box.innerHTML=data.tickets.map(ticket=>`<article class="alternative-table"><h3>טופס ${ticket.number}</h3><div class="alternative-head"><b>#</b><b>קבוצה 1</b><b>1/X/2</b><b>קבוצה 2</b></div>${ticket.picks.map((pick,index)=>`<div class="alternative-row"><b>${index+1}</b><span>${games[index].home}</span><strong>${pick.selection}</strong><span>${games[index].away}</span></div>`).join("")}</article>`).join("")}catch(error){status.textContent="לא הצלחנו להכין טפסים כרגע."}finally{document.querySelectorAll("[data-ticket-count]").forEach(item=>item.disabled=false)}
 });
 </script>
 </body></html>
