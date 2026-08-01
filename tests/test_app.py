@@ -13,6 +13,7 @@ from app.sync_service import configured_competitions
 from app.elo import elo_probabilities, update_elo
 from app.poisson import poisson_probabilities
 from app.ticket_optimizer import distance
+from app.team_names import hebrew_team_name
 
 
 client = TestClient(app)
@@ -118,8 +119,8 @@ def test_api_football_israel_fixture_normalization():
     payload = {"response": [{"fixture": {"id": 77, "date": "2026-08-09T18:00:00+00:00", "status": {"short": "NS"}}, "teams": {"home": {"id": 10, "name": "Maccabi Haifa"}, "away": {"id": 20, "name": "Hapoel Beer Sheva"}}}]}
     teams, matches = parse_api_football_fixtures(payload, "383")
     assert len(teams) == 2
-    assert matches[0]["home_team"] == "Maccabi Haifa"
-    assert matches[0]["away_team"] == "Hapoel Beer Sheva"
+    assert matches[0]["home_team"] == "מכבי חיפה"
+    assert matches[0]["away_team"] == "הפועל באר שבע"
 
 
 def test_elo_and_poisson_models():
@@ -158,3 +159,8 @@ def test_ticket_optimizer_creates_diverse_unique_tickets():
     signatures = [tuple(pick["selection"] for pick in ticket["picks"]) for ticket in response.json()["tickets"]]
     assert len(signatures) == len(set(signatures)) == 5
     assert all(distance(signatures[0], signature) >= 1 for signature in signatures[1:])
+
+
+def test_israeli_team_names_are_normalized_to_hebrew():
+    assert hebrew_team_name("Maccabi Haifa FC") == "מכבי חיפה"
+    assert hebrew_team_name("Hapoel Be'er Sheva") == "הפועל באר שבע"
