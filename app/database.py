@@ -601,6 +601,12 @@ def get_round(round_id: int) -> dict | None:
     return result
 
 
+def latest_round() -> dict | None:
+    with connect() as connection:
+        row = connection.execute("SELECT id FROM toto_rounds ORDER BY id DESC LIMIT 1").fetchone()
+    return get_round(int(row["id"])) if row else None
+
+
 def latest_round_recommendations() -> list[dict]:
     with connect() as connection:
         latest = connection.execute("SELECT id FROM toto_rounds ORDER BY id DESC LIMIT 1").fetchone()
