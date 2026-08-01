@@ -30,6 +30,9 @@ def test_health_and_hebrew_home():
     assert "ההמלצות של היום" in page.text
     assert "dad-row" in page.text
     assert client.get("/builder").status_code == 200
+    history = client.get("/history")
+    assert history.status_code == 200
+    assert "ביצועים והיסטוריה" in history.text
 
 
 def test_generate_settle_and_history():
