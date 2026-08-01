@@ -1,73 +1,30 @@
 <!doctype html>
 <html lang="he" dir="rtl">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#182b45"><meta name="apple-mobile-web-app-capable" content="yes">
-  <title>המלצות היום | Winner AI</title>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#102a43"><title>המלצות היום | Winner AI</title>
   <link rel="manifest" href="/static/manifest.webmanifest"><link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/styles.css?v=041">
+  <link rel="stylesheet" href="/static/styles.css?v=103">
 </head>
-<body class="coupon-body">
-<main class="coupon-page">
-  <header class="coupon-header">
-    <div><p class="coupon-brand" lang="en">Winner AI</p><h1>המלצות היום</h1></div>
-    <div class="coupon-date">{{ today }}</div>
-  </header>
-
-  <section class="coupon-help" aria-label="הסבר לסימונים">
-    <strong>איך קוראים את הטופס?</strong>
-    <span><b>1</b> ניצחון לקבוצת הבית</span>
-    <span><b>X</b> תיקו</span>
-    <span><b>2</b> ניצחון לקבוצת החוץ</span>
-  </section>
-
-  <p class="demo-badge">נתוני הדגמה</p>
-
-  <section class="coupon" aria-label="טופס ההמלצות">
-    <div class="coupon-table-head" aria-hidden="true">
-      <span>#</span><span>המשחק</span><span>הבחירה שלנו</span><span>הסבר קצר</span>
-    </div>
-    {% for recommendation in recommendations %}
-    <article class="coupon-row">
-      <div class="game-number">{{ loop.index }}</div>
-      <div class="game-info">
-        <h2>{{ recommendation.home_team }}</h2>
-        <p>מול {{ recommendation.away_team }}</p>
-        <small>שעה {{ recommendation.time }}</small>
-      </div>
-      <div class="selection-area">
-        <p class="mobile-label">הבחירה שלנו</p>
-        <div class="selection-boxes" role="group" aria-label="המלצה למשחק {{ loop.index }}">
-          {% for option in ["1", "X", "2"] %}
-          <span class="selection {% if recommendation.selection == option %}recommended{% endif %}"
-                aria-label="{{ option }}{% if recommendation.selection == option %}, מומלץ{% endif %}">
-            {{ option }}
-            {% if recommendation.selection == option %}<small>מומלץ</small>{% endif %}
-          </span>
-          {% endfor %}
-        </div>
-      </div>
-      <div class="coupon-explanation">
-        <strong>למה?</strong>
-        <ul>{% for reason in recommendation.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
-      </div>
+<body class="dad-body">
+<main class="dad-page">
+  <header class="dad-header"><div><b>Winner AI</b><h1>ההמלצות של היום</h1></div><time>{{ today }}</time></header>
+  <section class="dad-key" aria-label="הסבר הסימונים"><span><b>1</b> ניצחון בית</span><span><b>X</b> תיקו</span><span><b>2</b> ניצחון חוץ</span></section>
+  {% if not has_round %}<p class="data-status">עדיין אין מחזור מעודכן. לאחר סנכרון או שמירת מחזור, 16 ההמלצות יוצגו כאן אוטומטית.</p>{% endif %}
+  <section class="dad-table" aria-label="טבלת ההמלצות">
+    <div class="dad-head"><span>#</span><span>קבוצה 1</span><span>קבוצה 2</span><span>המלצה</span><span>למה?</span></div>
+    {% for item in recommendations %}
+    <article class="dad-row">
+      <div class="dad-number">{{ loop.index }}</div>
+      <div class="dad-team dad-home-team"><small>קבוצה 1 · בית</small><strong>{{ item.home_team }}</strong><span>שעה {{ item.time }}</span></div>
+      <div class="dad-team dad-away-team"><small>קבוצה 2 · חוץ</small><strong>{{ item.away_team }}</strong></div>
+      <div class="dad-choice" aria-label="המלצה {{ item.selection }}"><span class="choice {% if item.selection == '1' %}chosen{% endif %}">1</span><span class="choice {% if item.selection == 'X' %}chosen{% endif %}">X</span><span class="choice {% if item.selection == '2' %}chosen{% endif %}">2</span></div>
+      <details class="dad-reason"><summary>למה?</summary><ul>{% for reason in item.reasons %}<li>{{ reason }}</li>{% endfor %}</ul></details>
     </article>
-    {% else %}
-    <div class="empty-coupon">
-      <h2>אין המלצות להיום</h2>
-      <p>עדיף להמתין ליום אחר.</p>
-    </div>
-    {% endfor %}
+    {% else %}{% for number in range(1, 17) %}<article class="dad-row waiting-row"><div class="dad-number">{{ number }}</div><div class="dad-team dad-home-team"><small>קבוצה 1 · בית</small><strong>ממתין לקבוצה</strong></div><div class="dad-team dad-away-team"><small>קבוצה 2 · חוץ</small><strong>ממתין לקבוצה</strong></div><div class="dad-choice"><span class="choice">1</span><span class="choice">X</span><span class="choice">2</span></div><div class="waiting-reason">ממתין לנתונים</div></article>{% endfor %}{% endfor %}
   </section>
-
-  <p class="coupon-notice">אלה המלצות בלבד. אין ודאות בתוצאות ספורט.</p>
-  <nav class="bottom-nav coupon-nav" aria-label="ניווט ראשי">
-    <a class="nav-link active" href="/" aria-current="page">המלצות היום</a>
-    <a class="nav-link" href="/history">היסטוריה</a>
-  </nav>
+  <p class="dad-warning">חשוב: אלו המלצות בלבד. אין ודאות בתוצאות ספורט.</p>
+  <nav class="dad-nav"><a class="active" href="/">המלצות היום</a><a href="/history">היסטוריה</a><a href="/builder">יצירת טפסים</a></nav>
 </main>
-<script>
-if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/service-worker.js"));}
-</script>
-</body>
-</html>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("/service-worker.js")}</script>
+</body></html>
