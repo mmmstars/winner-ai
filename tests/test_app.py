@@ -9,6 +9,7 @@ os.environ["ADMIN_PIN"] = "246810"
 from fastapi.testclient import TestClient
 from app.main import app
 from app.providers import parse_football_data_matches, parse_football_data_teams
+from app.sync_service import configured_competitions
 
 
 client = TestClient(app)
@@ -92,3 +93,12 @@ def test_provider_match_normalization():
     assert matches[0]["home_team"] == "Home"
     assert matches[0]["away_team"] == "Away"
     assert matches[0]["competition"] == "PL"
+
+
+def test_sync_status_and_security():
+    status = client.get("/api/sync/status")
+    assert status.status_code == 200
+    assert "PL" in status.json()["competitions"]
+    assert configured_competitions()
+    client.post("/admin/logout")
+    assert client.post("/api/sync/all").status_code == 403
