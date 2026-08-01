@@ -35,9 +35,11 @@ from app.prediction import GameInput, GenerateRequest, RoundRequest, SettleReque
 from app.providers import football_data_matches, football_data_teams
 from app.sync_service import start_auto_sync, sync_all, sync_status
 from app.backtest import BacktestRequest, evaluate
+from app.security import ProductionSecurityMiddleware
 
 BASE_DIR = Path(__file__).resolve().parent
 app = FastAPI(title="Winner AI", version="1.0.0")
+app.add_middleware(ProductionSecurityMiddleware)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 initialize_database()
