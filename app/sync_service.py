@@ -117,8 +117,9 @@ def sync_all() -> dict:
     season = datetime.now(timezone.utc).year
     for competition in OPENLIGA_COMPETITIONS:
         try:
-            previous_teams, _, previous_metrics = openliga_matches(competition, season - 1)
+            previous_teams, previous_matches, previous_metrics = openliga_matches(competition, season - 1)
             teams_total += import_teams(previous_teams, "openligadb")
+            matches_total += import_matches(previous_matches, "openligadb")
             import_team_metrics(previous_metrics, "openligadb")
             teams, matches, metrics = openliga_matches(competition, season)
             teams_total += import_teams(teams, "openligadb")
