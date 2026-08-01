@@ -16,6 +16,7 @@ from app.providers import (
     openliga_matches,
 )
 from app.round_service import create_automatic_round
+from app.israel_data import public_israel_data
 
 
 DEFAULT_COMPETITIONS = "PL,PD,BL1,SA,FL1,DED,PPL,CL"
@@ -48,6 +49,7 @@ def sync_status() -> dict:
         "api_football": api_football_configured(),
         "football_data": football_data_configured(),
         "openligadb": True,
+        "public_israel": True,
     }
     result["competitions"] = configured_competitions()
     return result
@@ -60,6 +62,12 @@ def sync_all() -> dict:
     teams_total = 0
     matches_total = 0
     errors = []
+    try:
+        israel_teams, israel_matches = public_israel_data()
+        teams_total += import_teams(israel_teams, "public-israel")
+        matches_total += import_matches(israel_matches, "public-israel")
+    except Exception as error:
+        errors.append(f"ישראל ציבורי: {type(error).__name__}")
     use_api_football_current = os.getenv("API_FOOTBALL_USE_CURRENT", "false").lower() == "true"
     if api_football_configured() and use_api_football_current:
         try:
