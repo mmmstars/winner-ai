@@ -24,7 +24,10 @@ def sample_games() -> list[dict]:
 
 
 def test_health_and_hebrew_home():
-    assert client.get("/health").json() == {"status": "ok", "version": "1.0.0"}
+    health = client.get("/health")
+    assert health.json() == {"status": "ok", "version": "1.0.0"}
+    assert health.headers["x-content-type-options"] == "nosniff"
+    assert health.headers["x-frame-options"] == "DENY"
     page = client.get("/")
     assert page.status_code == 200
     assert 'dir="rtl"' in page.text
