@@ -57,6 +57,15 @@
     </section>
 
     <section class="admin-section">
+      <h2>עדכון תוצאות</h2>
+      <p>אם תוצאה ישראלית חסרה, ניתן להדביק אותה כאן.</p>
+      <form class="admin-form" method="post" action="/admin/results">
+        <label>תוצאות<textarea name="results" rows="6" required placeholder="מכבי חיפה | הפועל חיפה | 2 | 1"></textarea></label>
+        <button class="primary-button" type="submit">עדכן תוצאות והיסטוריה</button>
+      </form>
+    </section>
+
+    <section class="admin-section">
       <h2>המלצות פעילות</h2>
       <div class="admin-list">
       {% for recommendation in recommendations %}
