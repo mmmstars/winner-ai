@@ -22,7 +22,7 @@ SOURCES = {
     ),
     "football-data.co.uk": SourcePolicy("football-data.co.uk", "Football-Data.co.uk", .90, True, "https://www.football-data.co.uk/downloadm.php", "קובצי CSV היסטוריים; הורדה מרוכזת ארבע פעמים ביום לכל היותר."),
     "statsbomb-open": SourcePolicy("statsbomb-open", "StatsBomb Open Data", .94, True, "https://github.com/statsbomb/open-data", "נתוני מחקר פתוחים; יש להציג קרדיט ל־StatsBomb."),
-    "thesportsdb": SourcePolicy("thesportsdb", "TheSportsDB", .76, True, "https://www.thesportsdb.com/docs_api_guide", "שכבה חינמית; עד 30 בקשות בדקה."),
+    "thesportsdb": SourcePolicy("thesportsdb", "TheSportsDB — ישראל", .76, True, "https://www.thesportsdb.com/docs_api_guide", "ליגת העל והליגה הלאומית, כולל תוצאות עבר; ארבע בדיקות ביום ועד 30 בקשות בדקה."),
     "open-meteo": SourcePolicy("open-meteo", "Open-Meteo", .86, True, "https://open-meteo.com/en/docs", "תחזית מזג אוויר, בשימוש לא מסחרי ועם קרדיט."),
     "manual": SourcePolicy("manual", "הזנה ידנית", .70, False, "", "הנתון מוצג כהזנה ידנית."),
     "public-israel-estimate": SourcePolicy(

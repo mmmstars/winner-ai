@@ -27,7 +27,7 @@ def sample_games() -> list[dict]:
 
 def test_health_and_hebrew_home():
     health = client.get("/health")
-    assert health.json() == {"status": "ok", "version": "1.1.0"}
+    assert health.json() == {"status": "ok", "version": "1.2.0"}
     assert health.headers["x-content-type-options"] == "nosniff"
     assert health.headers["x-frame-options"] == "DENY"
     page = client.get("/")
@@ -99,7 +99,7 @@ def test_admin_security_and_assets():
     assert login.status_code == 303
     assert client.get("/static/manifest.webmanifest").status_code == 200
     assert client.get("/service-worker.js").status_code == 200
-    assert "winner-ai-v213" in client.get("/service-worker.js").text
+    assert "winner-ai-v220" in client.get("/service-worker.js").text
 
 
 def test_provider_team_normalization():
@@ -120,6 +120,7 @@ def test_sync_status_and_security():
     assert status.status_code == 200
     assert status.json()["competitions"] == []
     assert status.json()["israeli_leagues"] == ["ליגת העל", "הליגה הלאומית"]
+    assert status.json()["checks_per_day"] == 4
     assert configured_competitions() == []
     client.post("/admin/logout")
     assert client.post("/api/sync/all").status_code == 403

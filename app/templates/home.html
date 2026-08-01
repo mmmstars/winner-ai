@@ -11,6 +11,7 @@
   <header class="dad-header"><div><b>Winner AI{% if israel_source %} · ישראל{% endif %}</b><h1>ההמלצות של היום</h1></div><div class="header-actions"><time>{{ today }}</time><button type="button" onclick="location.reload()">רענון</button></div></header>
   <section class="dad-key" aria-label="הסבר הסימונים"><span class="key-home"><b>1</b><em>ניצחון בית</em></span><span class="key-draw"><b>X</b><em>תיקו</em></span><span class="key-away"><b>2</b><em>ניצחון חוץ</em></span></section>
   <p class="data-quality">{{ data_note }}</p>
+  <p class="data-status">בדיקות היום: {{ checks_today }} מתוך {{ checks_per_day }} · משחקי עבר במנוע: {{ history_matches }}</p>
   {% if not has_round %}<p class="data-status">עדיין אין מחזור מעודכן. לאחר סנכרון או שמירת מחזור, 16 ההמלצות יוצגו כאן אוטומטית.</p>{% endif %}
   <section class="dad-table" aria-label="טבלת ההמלצות">
     <h2 class="dad-table-title">המלצה מס׳ 1</h2>

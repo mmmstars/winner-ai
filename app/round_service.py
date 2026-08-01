@@ -1,6 +1,6 @@
 from datetime import date
 
-from app.database import create_round, delete_round, round_id_by_name, team_rating, upcoming_matches
+from app.database import create_round, delete_round, round_id_by_name, save_prediction_snapshot, team_rating, upcoming_matches
 from app.prediction import GameInput, market_analysis
 
 
@@ -48,6 +48,12 @@ def create_automatic_round() -> int | None:
             away_odds=item["away_odds"],
             home_form=item["home_form"],
             away_form=item["away_form"],
+            h2h_home_rate=item.get("h2h_home_rate", .40),
+            h2h_draw_rate=item.get("h2h_draw_rate", .28),
+            h2h_away_rate=item.get("h2h_away_rate", .32),
+            h2h_matches=item.get("h2h_matches", 0),
+            history_matches=min(item.get("home_history_matches", 0), item.get("away_history_matches", 0)),
+            odds_are_estimated=bool(item.get("estimated_odds")),
             home_missing=item["home_missing"],
             away_missing=item["away_missing"],
             temperature=item.get("temperature"),
@@ -70,7 +76,14 @@ def create_automatic_round() -> int | None:
         for index, item in enumerate(unique, start=1)
     ]
     closes_at = min(item["kickoff_at"] for item in unique)
-    return create_round(name, closes_at, games, [market_analysis(game) for game in games])
+    analyses = [market_analysis(game) for game in games]
+    round_id = create_round(name, closes_at, games, analyses)
+    for game, analysis in zip(games, analyses, strict=True):
+        save_prediction_snapshot(
+            game.provider, game.external_match_id, analysis["model"], analysis["confidence"],
+            analysis["hours_to_kickoff"], game.history_matches, analysis["data_quality"],
+        )
+    return round_id
 
 
 def valid_odds(item: dict) -> bool:

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import pytest
 
 from app.conflict_resolution import resolve_records
@@ -42,6 +42,17 @@ def test_prediction_exposes_confidence_and_value():
     assert analysis["prediction"] in {"1", "X", "2"}
     assert 0 <= analysis["confidence"] <= 100
     assert set(analysis["value"]) == {"1", "X", "2"}
+
+
+def test_prediction_changes_as_kickoff_approaches_and_reports_quality():
+    common = dict(number=1, home_team="א", away_team="ב", home_odds=2.2, draw_odds=3.1,
+                  away_odds=3.4, home_elo=1650, away_elo=1450, home_form=.8, away_form=.3,
+                  history_matches=20, h2h_matches=5, odds_are_estimated=True)
+    far = market_analysis(GameInput(**common, kickoff_at=datetime.now(timezone.utc) + timedelta(days=40)))
+    near = market_analysis(GameInput(**common, kickoff_at=datetime.now(timezone.utc) + timedelta(hours=8)))
+    assert far["model"] != near["model"]
+    assert near["hours_to_kickoff"] < far["hours_to_kickoff"]
+    assert near["data_quality"] > 0
 
 
 def test_official_csv_adapter_and_guarded_recalibration():

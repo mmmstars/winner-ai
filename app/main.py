@@ -49,7 +49,7 @@ logging.basicConfig(
     level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
-app = FastAPI(title="Winner AI", version="1.1.0")
+app = FastAPI(title="Winner AI", version="1.2.0")
 app.add_middleware(ProductionSecurityMiddleware)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
@@ -118,10 +118,14 @@ def recommendations_for_coupon() -> list[dict]:
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request) -> HTMLResponse:
     recommendations = recommendations_for_coupon()
+    current_israeli_round = [item for item in latest_round_recommendations() if is_israeli_match(item)]
+    current_sync = sync_status()
     return templates.TemplateResponse(
         request=request,
         name="home.html",
-        context={"recommendations": recommendations, "today": today_text(), "has_round": bool(latest_round_recommendations()),
+        context={"recommendations": recommendations, "today": today_text(), "has_round": len(current_israeli_round) == 16,
+                 "checks_today": current_sync.get("checks_today", 0), "checks_per_day": 4,
+                 "history_matches": current_sync.get("history_matches", 0),
                  "israel_source": any(item.get("provider") == "public-israel-estimate" for item in recommendations),
                  "data_note": "הדגמה בלבד · ההסתברויות אינן יחסי שוק" if any(item.get("provider") == "public-israel-estimate" for item in recommendations) else "נתונים ממקור חינמי מאושר"},
     )
@@ -451,4 +455,4 @@ async def service_worker() -> FileResponse:
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    return {"status": "ok", "version": "1.1.0"}
+    return {"status": "ok", "version": "1.2.0"}

@@ -195,6 +195,29 @@ def initialize_database() -> None:
                 captured_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY(provider, external_match_id)
             );
+            CREATE TABLE IF NOT EXISTS sync_checks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                finished_at TEXT,
+                status TEXT NOT NULL DEFAULT 'running',
+                matches_imported INTEGER NOT NULL DEFAULT 0,
+                history_matches INTEGER NOT NULL DEFAULT 0,
+                message TEXT NOT NULL DEFAULT ''
+            );
+            CREATE TABLE IF NOT EXISTS prediction_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider TEXT NOT NULL,
+                external_match_id TEXT NOT NULL,
+                checked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                home_probability REAL NOT NULL,
+                draw_probability REAL NOT NULL,
+                away_probability REAL NOT NULL,
+                selection TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                hours_to_kickoff REAL,
+                history_matches INTEGER NOT NULL DEFAULT 0,
+                data_quality REAL NOT NULL DEFAULT 0
+            );
             """
         )
         _ensure_column(connection, "fixtures", "kickoff_at", "TEXT")
@@ -202,6 +225,16 @@ def initialize_database() -> None:
         _ensure_column(connection, "fixtures", "external_match_id", "TEXT")
         _ensure_column(connection, "external_matches", "home_score", "INTEGER")
         _ensure_column(connection, "external_matches", "away_score", "INTEGER")
+        for column in (
+            "home_form REAL NOT NULL DEFAULT 0.5",
+            "away_form REAL NOT NULL DEFAULT 0.5",
+            "home_goals_for REAL NOT NULL DEFAULT 1.3",
+            "home_goals_against REAL NOT NULL DEFAULT 1.3",
+            "away_goals_for REAL NOT NULL DEFAULT 1.3",
+            "away_goals_against REAL NOT NULL DEFAULT 1.3",
+        ):
+            name, definition = column.split(" ", 1)
+            _ensure_column(connection, "team_metrics", name, definition)
         if connection.execute("SELECT COUNT(*) FROM recommendations").fetchone()[0] == 0:
             for item in TODAY_RECOMMENDATIONS:
                 add_recommendation(
@@ -457,10 +490,9 @@ def team_rating(team_name: str) -> float:
 
 
 def bootstrap_team_ratings() -> int:
-    """Build initial Elo ratings once from completed historical fixtures."""
+    """Rebuild Elo chronologically so newly completed games are included exactly once."""
     with connect() as connection:
-        if connection.execute("SELECT COUNT(*) FROM team_ratings").fetchone()[0]:
-            return 0
+        connection.execute("DELETE FROM team_ratings")
         rows = connection.execute(
             """SELECT h.name_he home_team,a.name_he away_team,m.home_score,m.away_score
                FROM external_matches m
@@ -481,6 +513,104 @@ def bootstrap_team_ratings() -> int:
                     (name, rating),
                 )
     return len(rows)
+
+
+def rebuild_historical_features(provider: str = "thesportsdb") -> int:
+    """Rebuild leakage-safe recent form and home/away goal features from finished games."""
+    with connect() as connection:
+        rows = connection.execute(
+            """SELECT m.kickoff_at,h.external_id home_id,a.external_id away_id,
+                      m.home_score,m.away_score
+               FROM external_matches m
+               JOIN teams h ON h.id=m.home_team_id JOIN teams a ON a.id=m.away_team_id
+               WHERE m.provider=? AND m.home_score IS NOT NULL AND m.away_score IS NOT NULL
+               ORDER BY m.kickoff_at""",
+            (provider,),
+        ).fetchall()
+        games: dict[str, list[tuple[bool, int, int]]] = {}
+        for row in rows:
+            games.setdefault(str(row["home_id"]), []).append((True, int(row["home_score"]), int(row["away_score"])))
+            games.setdefault(str(row["away_id"]), []).append((False, int(row["away_score"]), int(row["home_score"])))
+        for team_id, team_games in games.items():
+            recent = team_games[-10:]
+            home = [g for g in team_games if g[0]][-8:]
+            away = [g for g in team_games if not g[0]][-8:]
+            def values(items: list[tuple[bool, int, int]]) -> tuple[float, float, float]:
+                if not items:
+                    return .5, 1.3, 1.3
+                points = sum(3 if gf > ga else 1 if gf == ga else 0 for _, gf, ga in items)
+                return points / (3 * len(items)), sum(gf for _, gf, _ in items) / len(items), sum(ga for _, _, ga in items) / len(items)
+            form, goals_for, goals_against = values(recent)
+            home_form, home_for, home_against = values(home)
+            away_form, away_for, away_against = values(away)
+            connection.execute(
+                """INSERT INTO team_metrics(
+                   provider,external_team_id,form,goals_for,goals_against,matches,
+                   home_form,away_form,home_goals_for,home_goals_against,
+                   away_goals_for,away_goals_against)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT(provider,external_team_id) DO UPDATE SET
+                   form=excluded.form,goals_for=excluded.goals_for,goals_against=excluded.goals_against,
+                   matches=excluded.matches,home_form=excluded.home_form,away_form=excluded.away_form,
+                   home_goals_for=excluded.home_goals_for,home_goals_against=excluded.home_goals_against,
+                   away_goals_for=excluded.away_goals_for,away_goals_against=excluded.away_goals_against,
+                   captured_at=CURRENT_TIMESTAMP""",
+                (provider, team_id, form, goals_for, goals_against, len(team_games),
+                 home_form, away_form, home_for, home_against, away_for, away_against),
+            )
+    return len(rows)
+
+
+def start_sync_check() -> int:
+    with connect() as connection:
+        return int(connection.execute("INSERT INTO sync_checks DEFAULT VALUES").lastrowid)
+
+
+def finish_sync_check(check_id: int, matches: int, history: int, errors: list[str]) -> None:
+    with connect() as connection:
+        connection.execute(
+            """UPDATE sync_checks SET finished_at=CURRENT_TIMESTAMP,status=?,matches_imported=?,
+               history_matches=?,message=? WHERE id=?""",
+            ("warning" if errors else "ok", matches, history, "; ".join(errors), check_id),
+        )
+
+
+def checks_today() -> int:
+    with connect() as connection:
+        return int(connection.execute("SELECT COUNT(*) FROM sync_checks WHERE date(started_at)=date('now')").fetchone()[0])
+
+
+def save_prediction_snapshot(provider: str, external_match_id: str, model: dict, confidence: float,
+                             hours_to_kickoff: float | None, history_matches: int, data_quality: float) -> None:
+    with connect() as connection:
+        connection.execute(
+            """INSERT INTO prediction_snapshots(provider,external_match_id,home_probability,
+               draw_probability,away_probability,selection,confidence,hours_to_kickoff,
+               history_matches,data_quality) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+            (provider, external_match_id, model["1"], model["X"], model["2"], max(model, key=model.get),
+             confidence, hours_to_kickoff, history_matches, data_quality),
+        )
+
+
+def prediction_trend(provider: str, external_match_id: str) -> dict:
+    with connect() as connection:
+        rows = connection.execute(
+            """SELECT selection,confidence,home_probability,draw_probability,away_probability,checked_at
+               FROM prediction_snapshots WHERE provider=? AND external_match_id=?
+               ORDER BY id DESC LIMIT 2""",
+            (provider, external_match_id),
+        ).fetchall()
+        total_checks = int(connection.execute(
+            "SELECT COUNT(*) FROM prediction_snapshots WHERE provider=? AND external_match_id=?",
+            (provider, external_match_id),
+        ).fetchone()[0])
+    if not rows:
+        return {"checks": 0, "changed": False}
+    current = dict(rows[0])
+    current["checks"] = total_checks
+    current["changed"] = len(rows) == 2 and rows[0]["selection"] != rows[1]["selection"]
+    current["confidence_change"] = round(float(rows[0]["confidence"]) - float(rows[1]["confidence"]), 1) if len(rows) == 2 else 0
+    return current
 
 
 def record_result(home_team: str, away_team: str, home_score: int, away_score: int) -> bool:
@@ -684,9 +814,12 @@ def upcoming_matches(limit: int = 100) -> list[dict]:
             """SELECT m.id,m.provider,m.external_id,m.competition,m.kickoff_at,m.status,
                h.name_he home_team,a.name_he away_team,h.external_id home_external_id,a.external_id away_external_id,
                o.home_odds,o.draw_odds,o.away_odds,
-               COALESCE(hm.form,0.5) home_form,COALESCE(am.form,0.5) away_form,
-               COALESCE(hm.goals_for,1.4) home_goals_for,COALESCE(hm.goals_against,1.2) home_goals_against,
-               COALESCE(am.goals_for,1.2) away_goals_for,COALESCE(am.goals_against,1.4) away_goals_against,
+               COALESCE(hm.home_form,hm.form,0.5) home_form,COALESCE(am.away_form,am.form,0.5) away_form,
+               COALESCE(hm.home_goals_for,hm.goals_for,1.3) home_goals_for,
+               COALESCE(hm.home_goals_against,hm.goals_against,1.3) home_goals_against,
+               COALESCE(am.away_goals_for,am.goals_for,1.3) away_goals_for,
+               COALESCE(am.away_goals_against,am.goals_against,1.3) away_goals_against,
+               COALESCE(hm.matches,0) home_history_matches,COALESCE(am.matches,0) away_history_matches,
                COALESCE(ha.missing,0) home_missing,COALESCE(aa.missing,0) away_missing
                ,w.temperature,w.precipitation,w.wind_speed
                FROM external_matches m JOIN teams h ON h.id=m.home_team_id JOIN teams a ON a.id=m.away_team_id
@@ -698,7 +831,31 @@ def upcoming_matches(limit: int = 100) -> list[dict]:
                LEFT JOIN fixture_weather w ON w.provider=m.provider AND w.external_match_id=m.external_id
                WHERE m.status IN ('scheduled','ns','tbd') ORDER BY m.kickoff_at LIMIT ?""", (limit,)
         ).fetchall()
-    return [dict(row) for row in rows]
+    items = [dict(row) for row in rows]
+    with connect() as connection:
+        for item in items:
+            meetings = connection.execute(
+                """SELECT m.home_team_id,m.away_team_id,m.home_score,m.away_score
+                   FROM external_matches m JOIN teams h ON h.id=m.home_team_id JOIN teams a ON a.id=m.away_team_id
+                   WHERE m.home_score IS NOT NULL AND m.away_score IS NOT NULL
+                   AND ((h.name_he=? AND a.name_he=?) OR (h.name_he=? AND a.name_he=?))
+                   ORDER BY m.kickoff_at DESC LIMIT 8""",
+                (item["home_team"], item["away_team"], item["away_team"], item["home_team"]),
+            ).fetchall()
+            outcomes = {"1": 0, "X": 0, "2": 0}
+            for meeting in meetings:
+                direct = connection.execute("SELECT name_he FROM teams WHERE id=?", (meeting["home_team_id"],)).fetchone()[0] == item["home_team"]
+                home_score = int(meeting["home_score"] if direct else meeting["away_score"])
+                away_score = int(meeting["away_score"] if direct else meeting["home_score"])
+                outcomes["1" if home_score > away_score else "2" if home_score < away_score else "X"] += 1
+            total = len(meetings)
+            item.update(
+                h2h_home_rate=outcomes["1"] / total if total else .40,
+                h2h_draw_rate=outcomes["X"] / total if total else .28,
+                h2h_away_rate=outcomes["2"] / total if total else .32,
+                h2h_matches=total,
+            )
+    return items
 
 
 def round_id_by_name(name: str) -> int | None:
@@ -750,7 +907,7 @@ def latest_round_recommendations() -> list[dict]:
         if latest is None:
             return []
         rows = connection.execute(
-            """SELECT f.game_number,f.home_team,f.away_team,f.kickoff_at,f.provider,
+            """SELECT f.game_number,f.home_team,f.away_team,f.kickoff_at,f.provider,f.external_match_id,
                p.home_probability,p.draw_probability,p.away_probability,p.bookmaker_margin,
                o.home_odds,o.draw_odds,o.away_odds,o.source odds_source
                FROM fixtures f JOIN predictions p ON p.fixture_id=f.id
@@ -760,6 +917,7 @@ def latest_round_recommendations() -> list[dict]:
         ).fetchall()
     items = []
     for row in rows:
+        trend = prediction_trend(row["provider"], row["external_match_id"] or "")
         chances = {"1": row["home_probability"], "X": row["draw_probability"], "2": row["away_probability"]}
         selection = max(chances, key=chances.get)
         if abs(chances["1"] - chances["2"]) < 0.085 and chances["X"] >= 0.26:
@@ -785,8 +943,14 @@ def latest_round_recommendations() -> list[dict]:
             "confidence": f"{round(chances[selection] * 100)}%",
             "value": round(expected_value, 4),
             "is_value": expected_value >= .05,
+            "checks": trend.get("checks", 0),
+            "changed": trend.get("changed", False),
+            "confidence_change": trend.get("confidence_change", 0),
             "reasons": [
                 f"הסתברות המודל הגבוהה ביותר: {round(chances[selection] * 100)}%.",
+                (f"התחזית השתנתה בבדיקה האחרונה; שינוי הביטחון {trend.get('confidence_change', 0):+g}%."
+                 if trend.get("changed") else
+                 f"נשמרו {trend.get('checks', 0)} בדיקות עדכניות למשחק זה."),
                 value_note,
                 source_note,
             ],

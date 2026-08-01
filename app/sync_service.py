@@ -4,7 +4,10 @@ import logging
 import json
 from datetime import datetime, timezone
 
-from app.database import bootstrap_team_ratings, import_external_odds, import_fixture_absences, import_fixture_weather, import_matches, import_team_metrics, import_teams, settle_ready_runs, upcoming_matches
+from app.database import (bootstrap_team_ratings, checks_today, finish_sync_check, import_external_odds,
+                          import_fixture_absences, import_fixture_weather, import_matches, import_team_metrics,
+                          import_teams, rebuild_historical_features, settle_ready_runs, start_sync_check,
+                          upcoming_matches)
 from app.providers import (
     football_data_configured,
     football_data_matches,
@@ -56,10 +59,13 @@ def sync_status() -> dict:
     }
     result["competitions"] = configured_competitions()
     result["israeli_leagues"] = ["ליגת העל", "הליגה הלאומית"]
+    result["checks_today"] = checks_today()
+    result["checks_per_day"] = 4
     return result
 
 
 def sync_all() -> dict:
+    check_id = start_sync_check()
     started = datetime.now(timezone.utc).isoformat()
     with _lock:
         _status.update(running=True, configured=True, last_started_at=started, errors=[])
@@ -98,9 +104,13 @@ def sync_all() -> dict:
     try:
         league_ids = [item.strip() for item in os.getenv("THESPORTSDB_LEAGUE_IDS", "4644,4966").split(",") if item.strip()]
         season_name = os.getenv("THESPORTSDB_SEASON", "2026-2027")
-        teams, matches = thesportsdb_league_events(league_ids, season_name)
-        teams_total += import_teams(teams, "thesportsdb")
-        matches_total += import_matches(matches, "thesportsdb")
+        first_history_year = int(os.getenv("ISRAEL_HISTORY_FIRST_YEAR", "2019"))
+        current_start_year = int(season_name.split("-", 1)[0])
+        seasons = [f"{year}-{year + 1}" for year in range(first_history_year, current_start_year + 1)]
+        for requested_season in seasons:
+            teams, matches = thesportsdb_league_events(league_ids, requested_season)
+            teams_total += import_teams(teams, "thesportsdb")
+            matches_total += import_matches(matches, "thesportsdb")
     except (RuntimeError, ValueError, json.JSONDecodeError) as error:
         logger.warning("TheSportsDB sync failed: %s", error)
         errors.append(f"TheSportsDB: {error}")
@@ -132,6 +142,7 @@ def sync_all() -> dict:
     except (RuntimeError, ValueError, TypeError, json.JSONDecodeError) as error:
         logger.warning("Open-Meteo sync failed: %s", error)
         errors.append(f"Open-Meteo: {error}")
+    history_matches = rebuild_historical_features("thesportsdb")
     historical_ratings_built = bootstrap_team_ratings()
     round_id = create_automatic_round()
     settle_ready_runs()
@@ -139,6 +150,7 @@ def sync_all() -> dict:
         create_backup()
     except OSError as error:
         errors.append(f"גיבוי: {type(error).__name__}")
+    finish_sync_check(check_id, matches_total, history_matches, errors)
     with _lock:
         _status.update(
             running=False,
@@ -148,12 +160,13 @@ def sync_all() -> dict:
             errors=errors,
             round_id=round_id,
             historical_ratings_built=historical_ratings_built,
+            history_matches=history_matches,
         )
     return sync_status()
 
 
 def _worker() -> None:
-    interval = max(60, int(os.getenv("FOOTBALL_DATA_SYNC_MINUTES", "1440"))) * 60
+    interval = max(60, int(os.getenv("FOOTBALL_DATA_SYNC_MINUTES", "360"))) * 60
     while True:
         try:
             sync_all()
