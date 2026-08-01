@@ -8,12 +8,13 @@ os.environ["ADMIN_PIN"] = "246810"
 
 from fastapi.testclient import TestClient
 from app.main import app
-from app.providers import api_football_odds, parse_api_football_fixtures, parse_football_data_matches, parse_football_data_teams
+from app.providers import api_football_absences, api_football_odds, api_football_team_metrics, parse_api_football_fixtures, parse_football_data_matches, parse_football_data_teams, parse_openliga_matches, parse_openliga_team_metrics
 from app.sync_service import configured_competitions
 from app.elo import elo_probabilities, update_elo
 from app.poisson import dixon_coles_probabilities, poisson_probabilities
 from app.ticket_optimizer import distance
 from app.team_names import hebrew_team_name
+from app.team_factors import factor_probabilities
 
 
 client = TestClient(app)
@@ -84,8 +85,11 @@ def test_create_complete_round_and_retrieve_it():
     assert data["games"][0]["bookmaker_margin"] > 0
     assert client.get(f"/api/rounds/{data['id']}").json()["games"] == data["games"]
     teams = client.get("/api/teams?q=בית").json()
-    assert len(teams) == 16
+    assert len([team for team in teams if team["name_he"].startswith("בית ")]) == 16
     assert teams[0]["name_he"].startswith("בית")
+    alternatives = client.post("/api/current-tickets/6")
+    assert alternatives.status_code == 200
+    assert len(alternatives.json()["tickets"]) == 6
 
 
 def test_admin_security_and_assets():
@@ -94,7 +98,7 @@ def test_admin_security_and_assets():
     assert login.status_code == 303
     assert client.get("/static/manifest.webmanifest").status_code == 200
     assert client.get("/service-worker.js").status_code == 200
-    assert "winner-ai-v200" in client.get("/service-worker.js").text
+    assert "winner-ai-v202" in client.get("/service-worker.js").text
 
 
 def test_provider_team_normalization():
@@ -181,3 +185,40 @@ def test_upcoming_matches_support_api_football_status_and_odds(monkeypatch):
     assert odds["home_odds"] == 2.0
     assert odds["draw_odds"] == 3.2
     assert odds["away_odds"] == 3.5
+
+
+def test_form_and_missing_players_move_prediction_conservatively():
+    neutral = factor_probabilities(0.5, 0.5, 0, 0)
+    stronger_home = factor_probabilities(0.9, 0.2, 0, 4)
+    assert stronger_home["1"] > neutral["1"]
+    assert stronger_home["2"] < neutral["2"]
+    assert abs(sum(stronger_home.values()) - 1) < 0.001
+
+
+def test_api_football_metrics_and_absences(monkeypatch):
+    statistics_payload = {"response": {"form": "WWDLW", "fixtures": {"played": {"total": 5}}, "goals": {"for": {"average": {"total": "1.8"}}, "against": {"average": {"total": "0.8"}}}}}
+    monkeypatch.setattr("app.providers.api_football_request", lambda path, params: statistics_payload)
+    metrics = api_football_team_metrics("10", 383, 2026)
+    assert metrics["form"] == 0.6667
+    assert metrics["goals_for"] == 1.8
+
+    injury_payload = {"response": [{"team": {"id": 10}, "player": {"id": 1}}, {"team": {"id": 10}, "player": {"id": 1}}, {"team": {"id": 20}, "player": {"id": 2}}]}
+    monkeypatch.setattr("app.providers.api_football_request", lambda path, params: injury_payload)
+    assert api_football_absences("77") == {"10": 1, "20": 1}
+
+
+def test_openliga_fixture_normalization():
+    payload = [{"matchID": 41, "matchDateTimeUTC": "2026-08-20T18:30:00Z", "matchIsFinished": False, "team1": {"teamId": 1, "teamName": "Bayern München"}, "team2": {"teamId": 2, "teamName": "Borussia Dortmund"}}]
+    teams, matches = parse_openliga_matches(payload, "bl1")
+    assert len(teams) == 2
+    assert matches[0]["external_id"] == "41"
+    assert matches[0]["status"] == "scheduled"
+    assert matches[0]["competition"] == "BL1"
+
+
+def test_openliga_results_create_team_form():
+    payload = [{"matchID": 1, "matchDateTimeUTC": "2025-05-01T18:00:00Z", "matchIsFinished": True, "team1": {"teamId": 1, "teamName": "Home"}, "team2": {"teamId": 2, "teamName": "Away"}, "matchResults": [{"resultOrderID": 2, "pointsTeam1": 3, "pointsTeam2": 1}]}]
+    metrics = {item["external_id"]: item for item in parse_openliga_team_metrics(payload)}
+    assert metrics["1"]["form"] == 1.0
+    assert metrics["2"]["form"] == 0.0
+    assert metrics["1"]["goals_for"] == 3.0
