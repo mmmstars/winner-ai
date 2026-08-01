@@ -1,6 +1,8 @@
 import json
 import os
 import statistics
+import threading
+import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -10,6 +12,8 @@ from app.team_names import hebrew_team_name, team_aliases
 
 FOOTBALL_DATA_URL = "https://api.football-data.org/v4"
 API_FOOTBALL_URL = "https://v3.football.api-sports.io"
+_api_football_lock = threading.Lock()
+_api_football_last_call = 0.0
 
 
 def football_data_configured() -> bool:
@@ -42,6 +46,7 @@ def api_football_configured() -> bool:
 
 
 def api_football_request(path: str, params: dict[str, object]) -> dict:
+    global _api_football_last_call
     token = os.getenv("API_FOOTBALL_KEY", "").strip()
     if not token:
         raise RuntimeError("חסר API_FOOTBALL_KEY")
@@ -50,8 +55,14 @@ def api_football_request(path: str, params: dict[str, object]) -> dict:
         headers={"x-apisports-key": token, "User-Agent": "WinnerAI/1.0"},
     )
     try:
-        with urlopen(request, timeout=25) as response:
-            payload = json.load(response)
+        with _api_football_lock:
+            minimum_interval = max(0.0, float(os.getenv("API_FOOTBALL_MIN_INTERVAL", "6.2")))
+            remaining = minimum_interval - (time.monotonic() - _api_football_last_call)
+            if remaining > 0:
+                time.sleep(remaining)
+            with urlopen(request, timeout=25) as response:
+                payload = json.load(response)
+            _api_football_last_call = time.monotonic()
     except HTTPError as error:
         if error.code == 429:
             raise RuntimeError("מכסת הבקשות ל-API-Football הסתיימה זמנית") from error
