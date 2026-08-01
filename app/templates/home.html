@@ -4,7 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#102a43"><title>המלצות היום | Winner AI</title>
   <link rel="manifest" href="/static/manifest.webmanifest"><link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/styles.css?v=205">
+  <link rel="stylesheet" href="/static/styles.css?v=206">
 </head>
 <body class="dad-body">
 <main class="dad-page">
@@ -37,7 +37,7 @@ if("serviceWorker" in navigator){navigator.serviceWorker.register("/service-work
 document.querySelectorAll("[data-ticket-count]").forEach(button=>button.onclick=async()=>{
   const count=button.dataset.ticketCount,status=document.querySelector("#alternative-status"),box=document.querySelector("#alternative-tickets");
   document.querySelectorAll("[data-ticket-count]").forEach(item=>item.disabled=true);status.textContent=`מכין ${count} טפסים...`;
-  try{const response=await fetch(`/api/current-tickets/${count}`,{method:"POST"}),data=await response.json();if(!response.ok)throw Error();status.textContent=`הוכנו ${count} טפסים חלופיים ונשמרו בהיסטוריה.`;const games=[...document.querySelectorAll(".dad-row:not(.waiting-row)")].map(row=>({home:row.querySelector(".dad-home-team strong").textContent,away:row.querySelector(".dad-away-team strong").textContent}));box.className="alternative-grid";box.innerHTML=data.tickets.map(ticket=>`<article class="alternative-table"><h3>טופס ${ticket.number}</h3><div class="alternative-head"><b>#</b><b>קבוצה 1</b><b>1 / X / 2</b><b>קבוצה 2</b></div>${ticket.picks.map((pick,index)=>`<div class="alternative-row"><b class="alternative-number">${index+1}</b><span>${games[index].home}</span><div class="alternative-choice" aria-label="המלצה ${pick.selection}">${["1","X","2"].map(value=>`<i class="${value===pick.selection?"selected":""}">${value}</i>`).join("")}</div><span>${games[index].away}</span></div>`).join("")}</article>`).join("")}catch(error){status.textContent="לא הצלחנו להכין טפסים כרגע."}finally{document.querySelectorAll("[data-ticket-count]").forEach(item=>item.disabled=false)}
+  try{const response=await fetch(`/api/current-tickets/${count}`,{method:"POST"}),data=await response.json();if(!response.ok)throw Error();status.textContent=`הוכנו ${count} טורים חלופיים ונשמרו בהיסטוריה.`;const games=[...document.querySelectorAll(".dad-row:not(.waiting-row)")].map(row=>({home:row.querySelector(".dad-home-team strong").textContent,away:row.querySelector(".dad-away-team strong").textContent}));box.className="alternative-grid";box.innerHTML=data.tickets.map(ticket=>`<article class="alternative-table"><h3>המלצה טור ${ticket.number}</h3><div class="alternative-head alternative-column-head"><b>#</b><b>1</b><b>X</b><b>2</b></div>${ticket.picks.map((pick,index)=>`<div class="alternative-row alternative-column-row"><b class="alternative-number">${index+1}</b><span class="alternative-pick-cell ${pick.selection==="1"?"selected":""}">${pick.selection==="1"?games[index].home:""}</span><span class="alternative-pick-cell ${pick.selection==="X"?"selected":""}">${pick.selection==="X"?"X":""}</span><span class="alternative-pick-cell ${pick.selection==="2"?"selected":""}">${pick.selection==="2"?games[index].away:""}</span></div>`).join("")}</article>`).join("")}catch(error){status.textContent="לא הצלחנו להכין טורים כרגע."}finally{document.querySelectorAll("[data-ticket-count]").forEach(item=>item.disabled=false)}
 });
 </script>
 </body></html>
