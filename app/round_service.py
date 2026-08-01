@@ -10,6 +10,7 @@ def create_automatic_round() -> int | None:
     if existing:
         delete_round(existing)
     candidates = [prepare_odds(item) for item in upcoming_matches(100)]
+    candidates.sort(key=lambda item: (item.get("provider") != "public-israel", item["kickoff_at"]))
     unique = []
     seen = set()
     for item in candidates:
