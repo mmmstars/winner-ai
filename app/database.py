@@ -149,6 +149,24 @@ def initialize_database() -> None:
                 source TEXT NOT NULL,
                 UNIQUE(provider, external_match_id)
             );
+            CREATE TABLE IF NOT EXISTS team_metrics (
+                provider TEXT NOT NULL,
+                external_team_id TEXT NOT NULL,
+                form REAL NOT NULL,
+                goals_for REAL NOT NULL,
+                goals_against REAL NOT NULL,
+                matches INTEGER NOT NULL DEFAULT 0,
+                captured_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY(provider, external_team_id)
+            );
+            CREATE TABLE IF NOT EXISTS fixture_absences (
+                provider TEXT NOT NULL,
+                external_match_id TEXT NOT NULL,
+                external_team_id TEXT NOT NULL,
+                missing INTEGER NOT NULL DEFAULT 0,
+                captured_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY(provider, external_match_id, external_team_id)
+            );
             """
         )
         if connection.execute("SELECT COUNT(*) FROM recommendations").fetchone()[0] == 0:
@@ -501,13 +519,47 @@ def import_external_odds(items: list[dict], provider: str) -> int:
     return len(items)
 
 
+def import_team_metrics(items: list[dict], provider: str) -> int:
+    with connect() as connection:
+        for item in items:
+            connection.execute(
+                """INSERT INTO team_metrics(provider,external_team_id,form,goals_for,goals_against,matches)
+                   VALUES(?,?,?,?,?,?) ON CONFLICT(provider,external_team_id) DO UPDATE SET
+                   form=excluded.form,goals_for=excluded.goals_for,goals_against=excluded.goals_against,
+                   matches=excluded.matches,captured_at=CURRENT_TIMESTAMP""",
+                (provider, item["external_id"], item["form"], item["goals_for"], item["goals_against"], item["matches"]),
+            )
+    return len(items)
+
+
+def import_fixture_absences(fixture_id: str, counts: dict[str, int], provider: str) -> int:
+    with connect() as connection:
+        for team_id, missing in counts.items():
+            connection.execute(
+                """INSERT INTO fixture_absences(provider,external_match_id,external_team_id,missing)
+                   VALUES(?,?,?,?) ON CONFLICT(provider,external_match_id,external_team_id) DO UPDATE SET
+                   missing=excluded.missing,captured_at=CURRENT_TIMESTAMP""",
+                (provider, fixture_id, team_id, missing),
+            )
+    return len(counts)
+
+
 def upcoming_matches(limit: int = 100) -> list[dict]:
     with connect() as connection:
         rows = connection.execute(
             """SELECT m.id,m.external_id,m.competition,m.kickoff_at,m.status,
-               h.name_he home_team,a.name_he away_team,o.home_odds,o.draw_odds,o.away_odds
+               h.name_he home_team,a.name_he away_team,h.external_id home_external_id,a.external_id away_external_id,
+               o.home_odds,o.draw_odds,o.away_odds,
+               COALESCE(hm.form,0.5) home_form,COALESCE(am.form,0.5) away_form,
+               COALESCE(hm.goals_for,1.4) home_goals_for,COALESCE(hm.goals_against,1.2) home_goals_against,
+               COALESCE(am.goals_for,1.2) away_goals_for,COALESCE(am.goals_against,1.4) away_goals_against,
+               COALESCE(ha.missing,0) home_missing,COALESCE(aa.missing,0) away_missing
                FROM external_matches m JOIN teams h ON h.id=m.home_team_id JOIN teams a ON a.id=m.away_team_id
                LEFT JOIN external_odds o ON o.provider=m.provider AND o.external_match_id=m.external_id
+               LEFT JOIN team_metrics hm ON hm.provider=m.provider AND hm.external_team_id=h.external_id
+               LEFT JOIN team_metrics am ON am.provider=m.provider AND am.external_team_id=a.external_id
+               LEFT JOIN fixture_absences ha ON ha.provider=m.provider AND ha.external_match_id=m.external_id AND ha.external_team_id=h.external_id
+               LEFT JOIN fixture_absences aa ON aa.provider=m.provider AND aa.external_match_id=m.external_id AND aa.external_team_id=a.external_id
                WHERE m.status IN ('scheduled','ns','tbd') ORDER BY m.kickoff_at LIMIT ?""", (limit,)
         ).fetchall()
     return [dict(row) for row in rows]
