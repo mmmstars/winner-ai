@@ -1,36 +1,46 @@
 import json
 import os
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
 FOOTBALL_DATA_URL = "https://api.football-data.org/v4"
 
 
-def football_data_teams(competition: str) -> list[dict]:
+def football_data_configured() -> bool:
+    return bool(os.getenv("FOOTBALL_DATA_TOKEN", "").strip())
+
+
+def football_data_request(path: str) -> dict:
     token = os.getenv("FOOTBALL_DATA_TOKEN", "").strip()
     if not token:
         raise RuntimeError("חסר FOOTBALL_DATA_TOKEN")
-    code = competition.strip().upper()
     request = Request(
-        f"{FOOTBALL_DATA_URL}/competitions/{code}/teams",
+        f"{FOOTBALL_DATA_URL}{path}",
         headers={"X-Auth-Token": token, "User-Agent": "WinnerAI/1.0"},
     )
-    with urlopen(request, timeout=20) as response:
-        payload = json.load(response)
+    try:
+        with urlopen(request, timeout=20) as response:
+            return json.load(response)
+    except HTTPError as error:
+        if error.code == 403:
+            raise RuntimeError("אין הרשאה לתחרות הזאת בחבילת football-data.org") from error
+        if error.code == 429:
+            raise RuntimeError("מכסת הבקשות ל-football-data.org הסתיימה זמנית") from error
+        raise RuntimeError(f"football-data.org החזיר שגיאה {error.code}") from error
+    except (URLError, TimeoutError, json.JSONDecodeError) as error:
+        raise RuntimeError("לא ניתן להתחבר כרגע ל-football-data.org") from error
+
+
+def football_data_teams(competition: str) -> list[dict]:
+    code = competition.strip().upper()
+    payload = football_data_request(f"/competitions/{code}/teams")
     return parse_football_data_teams(payload)
 
 
 def football_data_matches(competition: str) -> list[dict]:
-    token = os.getenv("FOOTBALL_DATA_TOKEN", "").strip()
-    if not token:
-        raise RuntimeError("חסר FOOTBALL_DATA_TOKEN")
     code = competition.strip().upper()
-    request = Request(
-        f"{FOOTBALL_DATA_URL}/competitions/{code}/matches?status=SCHEDULED",
-        headers={"X-Auth-Token": token, "User-Agent": "WinnerAI/1.0"},
-    )
-    with urlopen(request, timeout=20) as response:
-        payload = json.load(response)
+    payload = football_data_request(f"/competitions/{code}/matches?status=SCHEDULED")
     return parse_football_data_matches(payload, code)
 
 
