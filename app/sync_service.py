@@ -2,7 +2,7 @@ import os
 import threading
 from datetime import datetime, timezone
 
-from app.database import import_external_odds, import_fixture_absences, import_matches, import_team_metrics, import_teams, settle_ready_runs
+from app.database import bootstrap_team_ratings, import_external_odds, import_fixture_absences, import_matches, import_team_metrics, import_teams, settle_ready_runs
 from app.providers import (
     api_football_configured,
     api_football_fixtures,
@@ -33,6 +33,7 @@ _status = {
     "matches_imported": 0,
     "errors": [],
     "round_id": None,
+    "historical_ratings_built": 0,
 }
 
 
@@ -125,6 +126,7 @@ def sync_all() -> dict:
             import_team_metrics(metrics, "openligadb")
         except RuntimeError as error:
             errors.append(f"{competition.upper()}: {error}")
+    historical_ratings_built = bootstrap_team_ratings()
     round_id = create_automatic_round()
     settle_ready_runs()
     try:
@@ -139,6 +141,7 @@ def sync_all() -> dict:
             matches_imported=matches_total,
             errors=errors,
             round_id=round_id,
+            historical_ratings_built=historical_ratings_built,
         )
     return sync_status()
 
