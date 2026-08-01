@@ -138,6 +138,17 @@ def initialize_database() -> None:
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(run_id, game_number)
             );
+            CREATE TABLE IF NOT EXISTS external_odds (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider TEXT NOT NULL,
+                external_match_id TEXT NOT NULL,
+                captured_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                home_odds REAL NOT NULL,
+                draw_odds REAL NOT NULL,
+                away_odds REAL NOT NULL,
+                source TEXT NOT NULL,
+                UNIQUE(provider, external_match_id)
+            );
             """
         )
         if connection.execute("SELECT COUNT(*) FROM recommendations").fetchone()[0] == 0:
@@ -477,15 +488,35 @@ def import_matches(items: list[dict], provider: str) -> int:
     return len(items)
 
 
+def import_external_odds(items: list[dict], provider: str) -> int:
+    with connect() as connection:
+        for item in items:
+            connection.execute(
+                """INSERT INTO external_odds(provider,external_match_id,home_odds,draw_odds,away_odds,source)
+                   VALUES(?,?,?,?,?,?) ON CONFLICT(provider,external_match_id) DO UPDATE SET
+                   captured_at=CURRENT_TIMESTAMP,home_odds=excluded.home_odds,draw_odds=excluded.draw_odds,
+                   away_odds=excluded.away_odds,source=excluded.source""",
+                (provider, item["external_id"], item["home_odds"], item["draw_odds"], item["away_odds"], item["source"]),
+            )
+    return len(items)
+
+
 def upcoming_matches(limit: int = 100) -> list[dict]:
     with connect() as connection:
         rows = connection.execute(
             """SELECT m.id,m.external_id,m.competition,m.kickoff_at,m.status,
-               h.name_he home_team,a.name_he away_team
+               h.name_he home_team,a.name_he away_team,o.home_odds,o.draw_odds,o.away_odds
                FROM external_matches m JOIN teams h ON h.id=m.home_team_id JOIN teams a ON a.id=m.away_team_id
-               WHERE m.status='scheduled' ORDER BY m.kickoff_at LIMIT ?""", (limit,)
+               LEFT JOIN external_odds o ON o.provider=m.provider AND o.external_match_id=m.external_id
+               WHERE m.status IN ('scheduled','ns','tbd') ORDER BY m.kickoff_at LIMIT ?""", (limit,)
         ).fetchall()
     return [dict(row) for row in rows]
+
+
+def round_id_by_name(name: str) -> int | None:
+    with connect() as connection:
+        row = connection.execute("SELECT id FROM toto_rounds WHERE name=? ORDER BY id DESC LIMIT 1", (name,)).fetchone()
+    return int(row["id"]) if row else None
 
 
 def get_round(round_id: int) -> dict | None:
