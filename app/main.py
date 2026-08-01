@@ -113,7 +113,8 @@ async def home(request: Request) -> HTMLResponse:
         request=request,
         name="home.html",
         context={"recommendations": recommendations, "today": today_text(), "has_round": bool(latest_round_recommendations()),
-                 "israel_source": any(item.get("provider") == "public-israel" for item in recommendations)},
+                 "israel_source": any(item.get("provider") == "public-israel" for item in recommendations),
+                 "data_note": "מידע ציבורי · יחסים מוערכים" if any(item.get("provider") == "public-israel" for item in recommendations) else "נתוני ספק חיצוני"},
     )
 
 
