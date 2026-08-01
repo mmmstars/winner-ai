@@ -8,7 +8,7 @@ os.environ["ADMIN_PIN"] = "246810"
 
 from fastapi.testclient import TestClient
 from app.main import app
-from app.providers import parse_football_data_matches, parse_football_data_teams
+from app.providers import parse_api_football_fixtures, parse_football_data_matches, parse_football_data_teams
 from app.sync_service import configured_competitions
 
 
@@ -102,3 +102,11 @@ def test_sync_status_and_security():
     assert configured_competitions()
     client.post("/admin/logout")
     assert client.post("/api/sync/all").status_code == 403
+
+
+def test_api_football_israel_fixture_normalization():
+    payload = {"response": [{"fixture": {"id": 77, "date": "2026-08-09T18:00:00+00:00", "status": {"short": "NS"}}, "teams": {"home": {"id": 10, "name": "Maccabi Haifa"}, "away": {"id": 20, "name": "Hapoel Beer Sheva"}}}]}
+    teams, matches = parse_api_football_fixtures(payload, "383")
+    assert len(teams) == 2
+    assert matches[0]["home_team"] == "Maccabi Haifa"
+    assert matches[0]["away_team"] == "Hapoel Beer Sheva"
