@@ -1,4 +1,3 @@
-import random
 from datetime import datetime
 from typing import Literal
 
@@ -6,6 +5,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.elo import elo_probabilities
 from app.poisson import poisson_probabilities
+from app.ticket_optimizer import optimize
 
 
 Selection = Literal["1", "X", "2"]
@@ -131,21 +131,13 @@ def power_probabilities(game: GameInput) -> dict[str, float]:
 
 
 def generate(request: GenerateRequest, seed: int) -> list[dict]:
-    rng = random.Random(seed)
-    variation = {"בטוח": 0.05, "מאוזן": 0.16, "נועז": 0.30}[request.strategy]
-    tickets, used = [], set()
-    for number in range(1, request.ticket_count + 1):
-        for _ in range(100):
-            picks = []
-            for game in request.games:
-                chances = prediction_probabilities(game)
-                ordered = sorted(chances, key=chances.get, reverse=True)
-                selection = ordered[0] if rng.random() > variation else rng.choices(ordered[1:], weights=[chances[key] for key in ordered[1:]])[0]
-                margin = sorted(chances.values(), reverse=True)
-                picks.append({"game_number": game.number, "selection": selection, "confidence": round(50 + (margin[0] - margin[1]) * 100, 1), "probabilities": chances})
-            signature = tuple(pick["selection"] for pick in picks)
-            if signature not in used or request.ticket_count == 1:
-                used.add(signature)
-                tickets.append({"number": number, "picks": picks})
-                break
+    rows = [prediction_probabilities(game) for game in request.games]
+    signatures = optimize(rows, request.ticket_count, request.strategy, seed)
+    tickets = []
+    for number, signature in enumerate(signatures, start=1):
+        picks = []
+        for game, chances, selection in zip(request.games, rows, signature):
+            margin = sorted(chances.values(), reverse=True)
+            picks.append({"game_number": game.number, "selection": selection, "confidence": round(50 + (margin[0] - margin[1]) * 100, 1), "probabilities": chances})
+        tickets.append({"number": number, "picks": picks})
     return tickets
