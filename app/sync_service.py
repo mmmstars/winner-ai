@@ -66,6 +66,7 @@ def sync_all() -> dict:
         israel_teams, israel_matches = public_israel_data()
         teams_total += import_teams(israel_teams, "public-israel")
         matches_total += import_matches(israel_matches, "public-israel")
+        import_external_odds(israel_matches, "public-israel")
     except Exception as error:
         errors.append(f"ישראל ציבורי: {type(error).__name__}")
     use_api_football_current = os.getenv("API_FOOTBALL_USE_CURRENT", "false").lower() == "true"
