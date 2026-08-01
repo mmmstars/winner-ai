@@ -32,12 +32,14 @@ from app.database import (
 )
 from app.prediction import GameInput, GenerateRequest, RoundRequest, SettleRequest, TeamImportRequest, generate, market_analysis, power_probabilities
 from app.providers import football_data_matches, football_data_teams
+from app.sync_service import start_auto_sync, sync_all, sync_status
 
 BASE_DIR = Path(__file__).resolve().parent
 app = FastAPI(title="Winner AI", version="1.0.0")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 initialize_database()
+start_auto_sync()
 
 
 def today_text() -> str:
@@ -298,6 +300,19 @@ async def matches_sync(competition: str, request: Request) -> JSONResponse:
 @app.get("/api/matches/upcoming")
 async def matches_upcoming() -> list[dict]:
     return upcoming_matches()
+
+
+@app.get("/api/sync/status")
+async def data_sync_status() -> dict:
+    return sync_status()
+
+
+@app.post("/api/sync/all")
+async def data_sync_all(request: Request) -> JSONResponse:
+    if not is_admin(request):
+        return JSONResponse({"error": "אין הרשאה"}, status_code=403)
+    result = sync_all()
+    return JSONResponse(result, status_code=200 if not result["errors"] else 503)
 
 
 @app.post("/api/runs/{run_id}/settle")
