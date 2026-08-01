@@ -2,15 +2,17 @@ import os
 import threading
 from datetime import datetime, timezone
 
-from app.database import import_matches, import_teams
+from app.database import import_external_odds, import_matches, import_teams
 from app.providers import (
     api_football_configured,
     api_football_fixtures,
     api_football_israel_leagues,
+    api_football_odds,
     football_data_configured,
     football_data_matches,
     football_data_teams,
 )
+from app.round_service import create_automatic_round
 
 
 DEFAULT_COMPETITIONS = "PL,PD,BL1,SA,FL1,DED,PPL,CL"
@@ -24,6 +26,7 @@ _status = {
     "teams_imported": 0,
     "matches_imported": 0,
     "errors": [],
+    "round_id": None,
 }
 
 
@@ -54,10 +57,18 @@ def sync_all() -> dict:
     errors = []
     if api_football_configured():
         try:
+            api_matches = []
             for league in api_football_israel_leagues():
                 teams, matches = api_football_fixtures(league["id"], league["season"])
                 teams_total += import_teams(teams, "api-football")
                 matches_total += import_matches(matches, "api-football")
+                api_matches.extend(matches)
+            odds = []
+            for item in sorted(api_matches, key=lambda match: match["kickoff_at"])[:16]:
+                value = api_football_odds(item["external_id"])
+                if value:
+                    odds.append(value)
+            import_external_odds(odds, "api-football")
         except RuntimeError as error:
             errors.append(f"ישראל: {error}")
     if football_data_configured():
@@ -69,6 +80,7 @@ def sync_all() -> dict:
                 errors.append(f"{competition}: {error}")
     if not api_football_configured() and not football_data_configured():
         errors.append("חסר מפתח לספק נתוני ספורט")
+    round_id = create_automatic_round()
     with _lock:
         _status.update(
             running=False,
@@ -76,6 +88,7 @@ def sync_all() -> dict:
             teams_imported=teams_total,
             matches_imported=matches_total,
             errors=errors,
+            round_id=round_id,
         )
     return sync_status()
 
