@@ -105,9 +105,13 @@ def sync_all() -> dict:
     season = datetime.now(timezone.utc).year
     for competition in OPENLIGA_COMPETITIONS:
         try:
-            teams, matches = openliga_matches(competition, season)
+            previous_teams, _, previous_metrics = openliga_matches(competition, season - 1)
+            teams_total += import_teams(previous_teams, "openligadb")
+            import_team_metrics(previous_metrics, "openligadb")
+            teams, matches, metrics = openliga_matches(competition, season)
             teams_total += import_teams(teams, "openligadb")
             matches_total += import_matches(matches, "openligadb")
+            import_team_metrics(metrics, "openligadb")
         except RuntimeError as error:
             errors.append(f"{competition.upper()}: {error}")
     round_id = create_automatic_round()
