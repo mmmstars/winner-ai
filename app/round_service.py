@@ -9,7 +9,7 @@ def create_automatic_round() -> int | None:
     existing = round_id_by_name(name)
     if existing:
         return existing
-    candidates = [item for item in upcoming_matches(100) if valid_odds(item)]
+    candidates = [prepare_odds(item) for item in upcoming_matches(100)]
     unique = []
     seen = set()
     for item in candidates:
@@ -46,3 +46,11 @@ def create_automatic_round() -> int | None:
 
 def valid_odds(item: dict) -> bool:
     return all(item.get(key) is not None and float(item[key]) > 1 for key in ("home_odds", "draw_odds", "away_odds"))
+
+
+def prepare_odds(item: dict) -> dict:
+    if valid_odds(item):
+        return item
+    prepared = dict(item)
+    prepared.update(home_odds=2.35, draw_odds=3.20, away_odds=2.95, estimated_odds=True)
+    return prepared
