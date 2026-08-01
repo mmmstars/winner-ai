@@ -28,5 +28,5 @@ def public_israel_data() -> tuple[list[dict], list[dict]]:
             home_p = max(.22, min(.62, .40 + gap * .45))
             draw_p = .28 if abs(gap) < .18 else .25
             away_p = 1 - home_p - draw_p
-            matches.append({"external_id": f"IL-2026-{round_number}-{game_number}", "competition": "ISR-WINNER", "kickoff_at": when, "status": "scheduled", "home_external_id": str(teams.index(home) + 1), "away_external_id": str(teams.index(away) + 1), "home_odds": round(1 / home_p, 3), "draw_odds": round(1 / draw_p, 3), "away_odds": round(1 / away_p, 3), "source_url": SOURCE})
+            matches.append({"external_id": f"IL-2026-{round_number}-{game_number}", "competition": "ISR-WINNER", "kickoff_at": when, "status": "scheduled", "home_external_id": str(teams.index(home) + 1), "away_external_id": str(teams.index(away) + 1), "home_team": home, "away_team": away, "home_odds": round(1 / home_p, 3), "draw_odds": round(1 / draw_p, 3), "away_odds": round(1 / away_p, 3), "source": SOURCE})
     return team_items, matches
