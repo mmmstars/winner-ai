@@ -3,7 +3,14 @@ import threading
 from datetime import datetime, timezone
 
 from app.database import import_matches, import_teams
-from app.providers import football_data_configured, football_data_matches, football_data_teams
+from app.providers import (
+    api_football_configured,
+    api_football_fixtures,
+    api_football_israel_leagues,
+    football_data_configured,
+    football_data_matches,
+    football_data_teams,
+)
 
 
 DEFAULT_COMPETITIONS = "PL,PD,BL1,SA,FL1,DED,PPL,CL"
@@ -29,7 +36,11 @@ def sync_status() -> dict:
     with _lock:
         result = dict(_status)
         result["errors"] = list(_status["errors"])
-    result["configured"] = football_data_configured()
+    result["configured"] = football_data_configured() or api_football_configured()
+    result["providers"] = {
+        "api_football": api_football_configured(),
+        "football_data": football_data_configured(),
+    }
     result["competitions"] = configured_competitions()
     return result
 
@@ -37,19 +48,27 @@ def sync_status() -> dict:
 def sync_all() -> dict:
     started = datetime.now(timezone.utc).isoformat()
     with _lock:
-        _status.update(running=True, configured=football_data_configured(), last_started_at=started, errors=[])
+        _status.update(running=True, configured=football_data_configured() or api_football_configured(), last_started_at=started, errors=[])
     teams_total = 0
     matches_total = 0
     errors = []
-    if not football_data_configured():
-        errors.append("חסר FOOTBALL_DATA_TOKEN")
-    else:
+    if api_football_configured():
+        try:
+            for league in api_football_israel_leagues():
+                teams, matches = api_football_fixtures(league["id"], league["season"])
+                teams_total += import_teams(teams, "api-football")
+                matches_total += import_matches(matches, "api-football")
+        except RuntimeError as error:
+            errors.append(f"ישראל: {error}")
+    if football_data_configured():
         for competition in configured_competitions():
             try:
                 teams_total += import_teams(football_data_teams(competition), "football-data.org")
                 matches_total += import_matches(football_data_matches(competition), "football-data.org")
             except RuntimeError as error:
                 errors.append(f"{competition}: {error}")
+    if not api_football_configured() and not football_data_configured():
+        errors.append("חסר מפתח לספק נתוני ספורט")
     with _lock:
         _status.update(
             running=False,
@@ -70,7 +89,7 @@ def _worker() -> None:
 
 def start_auto_sync() -> bool:
     global _started
-    if _started or not football_data_configured():
+    if _started or not (football_data_configured() or api_football_configured()):
         return False
     _started = True
     threading.Thread(target=_worker, name="football-data-sync", daemon=True).start()
