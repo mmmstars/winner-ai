@@ -2,12 +2,14 @@ import os
 import threading
 from datetime import datetime, timezone
 
-from app.database import import_external_odds, import_matches, import_teams
+from app.database import import_external_odds, import_fixture_absences, import_matches, import_team_metrics, import_teams
 from app.providers import (
     api_football_configured,
     api_football_fixtures,
     api_football_israel_leagues,
     api_football_odds,
+    api_football_absences,
+    api_football_team_metrics,
     football_data_configured,
     football_data_matches,
     football_data_teams,
@@ -58,17 +60,36 @@ def sync_all() -> dict:
     if api_football_configured():
         try:
             api_matches = []
+            league_details = {}
             for league in api_football_israel_leagues():
                 teams, matches = api_football_fixtures(league["id"], league["season"])
+                league_details[str(league["id"])] = league
                 teams_total += import_teams(teams, "api-football")
                 matches_total += import_matches(matches, "api-football")
                 api_matches.extend(matches)
             odds = []
-            for item in sorted(api_matches, key=lambda match: match["kickoff_at"])[:16]:
+            selected = sorted(api_matches, key=lambda match: match["kickoff_at"])[:16]
+            for item in selected:
                 value = api_football_odds(item["external_id"])
                 if value:
                     odds.append(value)
             import_external_odds(odds, "api-football")
+            metric_keys = {}
+            for item in selected:
+                league = league_details.get(item["competition"])
+                if league:
+                    for key in ("home_external_id", "away_external_id"):
+                        metric_keys[item[key]] = league
+                import_fixture_absences(
+                    item["external_id"],
+                    api_football_absences(item["external_id"]),
+                    "api-football",
+                )
+            metrics = [
+                api_football_team_metrics(team_id, league["id"], league["season"])
+                for team_id, league in metric_keys.items()
+            ]
+            import_team_metrics(metrics, "api-football")
         except RuntimeError as error:
             errors.append(f"ישראל: {error}")
     if football_data_configured():
@@ -94,7 +115,7 @@ def sync_all() -> dict:
 
 
 def _worker() -> None:
-    interval = max(15, int(os.getenv("FOOTBALL_DATA_SYNC_MINUTES", "180"))) * 60
+    interval = max(60, int(os.getenv("FOOTBALL_DATA_SYNC_MINUTES", "1440"))) * 60
     while True:
         sync_all()
         threading.Event().wait(interval)
