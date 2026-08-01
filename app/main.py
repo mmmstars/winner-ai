@@ -122,7 +122,16 @@ async def builder(request: Request) -> HTMLResponse:
 
 @app.get("/history", response_class=HTMLResponse)
 async def history(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(request=request, name="history.html", context={"history": get_history()})
+    return templates.TemplateResponse(
+        request=request,
+        name="history.html",
+        context={
+            "history": get_history(),
+            "ticket_history": get_ticket_history(),
+            "statistics": get_ticket_statistics(),
+            "learning": get_learning_summary(),
+        },
+    )
 
 
 @app.get("/admin", response_class=HTMLResponse)
