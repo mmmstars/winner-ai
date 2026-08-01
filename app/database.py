@@ -617,6 +617,8 @@ def latest_round_recommendations() -> list[dict]:
     for row in rows:
         chances = {"1": row["home_probability"], "X": row["draw_probability"], "2": row["away_probability"]}
         selection = max(chances, key=chances.get)
+        if abs(chances["1"] - chances["2"]) < 0.045 and chances["X"] >= 0.26:
+            selection = "X"
         items.append({
             "home_team": row["home_team"], "away_team": row["away_team"], "time": "טרם נקבע",
             "selection": selection,
