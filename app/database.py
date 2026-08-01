@@ -430,6 +430,33 @@ def team_rating(team_name: str) -> float:
         return _rating(connection, team_name)
 
 
+def bootstrap_team_ratings() -> int:
+    """Build initial Elo ratings once from completed historical fixtures."""
+    with connect() as connection:
+        if connection.execute("SELECT COUNT(*) FROM team_ratings").fetchone()[0]:
+            return 0
+        rows = connection.execute(
+            """SELECT h.name_he home_team,a.name_he away_team,m.home_score,m.away_score
+               FROM external_matches m
+               JOIN teams h ON h.id=m.home_team_id JOIN teams a ON a.id=m.away_team_id
+               WHERE m.home_score IS NOT NULL AND m.away_score IS NOT NULL
+               ORDER BY m.kickoff_at"""
+        ).fetchall()
+        for row in rows:
+            actual = "1" if row["home_score"] > row["away_score"] else "2" if row["home_score"] < row["away_score"] else "X"
+            home = _rating(connection, row["home_team"])
+            away = _rating(connection, row["away_team"])
+            goal_difference = abs(row["home_score"] - row["away_score"])
+            new_home, new_away = update_elo(home, away, actual, goal_difference)
+            for name, rating in ((row["home_team"], new_home), (row["away_team"], new_away)):
+                connection.execute(
+                    """INSERT INTO team_ratings(team_name,elo,matches) VALUES(?,?,1)
+                       ON CONFLICT(team_name) DO UPDATE SET elo=excluded.elo,matches=team_ratings.matches+1,updated_at=CURRENT_TIMESTAMP""",
+                    (name, rating),
+                )
+    return len(rows)
+
+
 def record_result(home_team: str, away_team: str, home_score: int, away_score: int) -> bool:
     with connect() as connection:
         row = connection.execute(
