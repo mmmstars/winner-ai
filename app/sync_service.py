@@ -17,6 +17,7 @@ from app.providers import (
 )
 from app.round_service import create_automatic_round
 from app.israel_data import public_israel_data
+from app.backup import create_backup
 
 
 DEFAULT_COMPETITIONS = "PL,PD,BL1,SA,FL1,DED,PPL,CL"
@@ -126,6 +127,10 @@ def sync_all() -> dict:
             errors.append(f"{competition.upper()}: {error}")
     round_id = create_automatic_round()
     settle_ready_runs()
+    try:
+        create_backup()
+    except OSError as error:
+        errors.append(f"גיבוי: {type(error).__name__}")
     with _lock:
         _status.update(
             running=False,
