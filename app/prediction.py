@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 
 from app.elo import elo_probabilities
-from app.poisson import poisson_probabilities
+from app.poisson import dixon_coles_probabilities
 from app.ticket_optimizer import optimize
 
 
@@ -101,7 +101,7 @@ def market_analysis(game: GameInput) -> dict:
 def prediction_probabilities(game: GameInput) -> dict[str, float]:
     market = probabilities(game)
     elo = elo_probabilities(game.home_elo, game.away_elo)
-    goals = poisson_probabilities(
+    goals = dixon_coles_probabilities(
         game.home_goals_for,
         game.home_goals_against,
         game.away_goals_for,
