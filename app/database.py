@@ -613,7 +613,7 @@ def latest_round_recommendations() -> list[dict]:
             "confidence": f"{round(chances[selection] * 100)}%",
             "reasons": [
                 f"הסתברות המודל הגבוהה ביותר: {round(chances[selection] * 100)}%.",
-                f"מרווח השוק שחושב: {row['bookmaker_margin']}%.",
+                "התחזית משולבת ותתעדכן אוטומטית כשיתקבלו נתוני שוק נוספים.",
             ],
         })
     return items
