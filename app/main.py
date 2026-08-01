@@ -31,6 +31,7 @@ from app.database import (
     latest_round,
     import_matches,
     upcoming_matches,
+    record_result,
 )
 from app.prediction import GameInput, GenerateRequest, RoundRequest, SettleRequest, TeamImportRequest, generate, market_analysis, power_probabilities
 from app.providers import football_data_matches, football_data_teams
@@ -223,6 +224,24 @@ async def import_coupon(request: Request) -> HTMLResponse:
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         )
     return RedirectResponse("/?coupon=updated", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/admin/results")
+async def import_results(request: Request) -> HTMLResponse:
+    if not is_admin(request):
+        return HTMLResponse("אין הרשאה", status_code=status.HTTP_403_FORBIDDEN)
+    form = await read_form(request)
+    lines = [line.strip() for line in form.get("results", "").splitlines() if line.strip()]
+    try:
+        for line in lines:
+            home, away, home_score, away_score = [part.strip() for part in line.split("|")]
+            if not record_result(home, away, int(home_score), int(away_score)):
+                raise ValueError
+    except (ValueError, TypeError):
+        return templates.TemplateResponse(request=request, name="admin.html",
+            context=admin_context(request, error="פורמט תוצאות שגוי או משחק שלא נמצא."),
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
+    return RedirectResponse("/history", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.post("/admin/recommendations/{recommendation_id}/finish")
