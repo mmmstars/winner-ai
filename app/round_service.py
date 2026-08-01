@@ -1,6 +1,6 @@
 from datetime import date
 
-from app.database import create_round, round_id_by_name, upcoming_matches
+from app.database import create_round, delete_round, round_id_by_name, upcoming_matches
 from app.prediction import GameInput, market_analysis
 
 
@@ -8,7 +8,7 @@ def create_automatic_round() -> int | None:
     name = f"מחזור אוטומטי {date.today().strftime('%d.%m.%Y')}"
     existing = round_id_by_name(name)
     if existing:
-        return existing
+        delete_round(existing)
     candidates = [prepare_odds(item) for item in upcoming_matches(100)]
     unique = []
     seen = set()
