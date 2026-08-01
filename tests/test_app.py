@@ -128,3 +128,17 @@ def test_market_analysis_contains_blended_model():
     response = client.post("/api/market-analysis", json=sample_games()[0])
     assert response.status_code == 200
     assert abs(sum(response.json()["model"].values()) - 1) < 0.001
+
+
+def test_backtest_metrics():
+    items = [
+        {"probabilities": {"1": 0.7, "X": 0.2, "2": 0.1}, "result": "1"},
+        {"probabilities": {"1": 0.2, "X": 0.3, "2": 0.5}, "result": "X"},
+    ]
+    response = client.post("/api/backtest", json={"items": items})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["matches"] == 2
+    assert data["accuracy"] == 0.5
+    assert data["brier_score"] > 0
+    assert data["log_loss"] > 0
