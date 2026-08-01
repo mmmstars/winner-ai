@@ -4,6 +4,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.elo import elo_probabilities
+from app.poisson import poisson_probabilities
+
 
 Selection = Literal["1", "X", "2"]
 
@@ -15,6 +18,12 @@ class GameInput(BaseModel):
     home_odds: float = Field(gt=1, le=100)
     draw_odds: float = Field(gt=1, le=100)
     away_odds: float = Field(gt=1, le=100)
+    home_elo: float = Field(default=1500, ge=500, le=3000)
+    away_elo: float = Field(default=1500, ge=500, le=3000)
+    home_goals_for: float = Field(default=1.4, ge=0, le=10)
+    home_goals_against: float = Field(default=1.2, ge=0, le=10)
+    away_goals_for: float = Field(default=1.2, ge=0, le=10)
+    away_goals_against: float = Field(default=1.4, ge=0, le=10)
 
 
 class GenerateRequest(BaseModel):
@@ -85,7 +94,25 @@ def market_analysis(game: GameInput) -> dict:
         "fair": fair,
         "bookmaker_margin": round((overround - 1) * 100, 2),
         "method": "simple_normalization",
+        "model": prediction_probabilities(game),
     }
+
+
+def prediction_probabilities(game: GameInput) -> dict[str, float]:
+    market = probabilities(game)
+    elo = elo_probabilities(game.home_elo, game.away_elo)
+    goals = poisson_probabilities(
+        game.home_goals_for,
+        game.home_goals_against,
+        game.away_goals_for,
+        game.away_goals_against,
+    )
+    combined = {
+        key: market[key] * 0.50 + elo[key] * 0.25 + goals[key] * 0.25
+        for key in ("1", "X", "2")
+    }
+    total = sum(combined.values())
+    return {key: round(value / total, 4) for key, value in combined.items()}
 
 
 def power_probabilities(game: GameInput) -> dict[str, float]:
@@ -111,7 +138,7 @@ def generate(request: GenerateRequest, seed: int) -> list[dict]:
         for _ in range(100):
             picks = []
             for game in request.games:
-                chances = probabilities(game)
+                chances = prediction_probabilities(game)
                 ordered = sorted(chances, key=chances.get, reverse=True)
                 selection = ordered[0] if rng.random() > variation else rng.choices(ordered[1:], weights=[chances[key] for key in ordered[1:]])[0]
                 margin = sorted(chances.values(), reverse=True)
