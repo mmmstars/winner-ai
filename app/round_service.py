@@ -1,6 +1,6 @@
 from datetime import date
 
-from app.database import create_round, delete_round, round_id_by_name, upcoming_matches
+from app.database import create_round, delete_round, round_id_by_name, team_rating, upcoming_matches
 from app.prediction import GameInput, market_analysis
 
 
@@ -38,6 +38,8 @@ def create_automatic_round() -> int | None:
             home_goals_against=item["home_goals_against"],
             away_goals_for=item["away_goals_for"],
             away_goals_against=item["away_goals_against"],
+            home_elo=team_rating(item["home_team"]),
+            away_elo=team_rating(item["away_team"]),
             kickoff_at=item["kickoff_at"],
             provider=item.get("provider", "openligadb"),
             external_match_id=item["external_id"],
